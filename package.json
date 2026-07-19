@@ -1,0 +1,32 @@
+{
+  "name": "software-periodic-table",
+  "version": "0.1.0",
+  "description": "A finite ontology of 115 recurring software elements and a composition framework for LLM-based coding agents",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "example": "tsx examples/task-board.ts",
+    "eval": "tsx eval/runner.ts",
+    "validate": "tsx scripts/validate-ontology.ts",
+    "check": "tsc --noEmit"
+  },
+  "keywords": [
+    "software-ontology",
+    "compositional-code-generation",
+    "llm",
+    "coding-agents",
+    "periodic-table",
+    "reusability",
+    "software-engineering"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/nulllabtests/software-periodic-table"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0",
+    "@types/node": "^22.0.0"
+  }
+}

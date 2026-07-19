@@ -1,0 +1,22 @@
+cff-version: 1.2.0
+message: "If you use this work in research, please cite it as below."
+title: "Software Periodic Table: A Finite Ontology of Recurring Application Elements for Compositional Code Generation"
+type: software
+version: 0.1.0
+date-released: 2026-07-19
+license: MIT
+
+authors:
+  - name: "Software Periodic Table Contributors"
+
+repository-code: "https://github.com/nulllabtests/software-periodic-table"
+
+keywords:
+  - software-ontology
+  - compositional-code-generation
+  - llm-agents
+  - software-engineering
+  - periodic-table
+  - reusability
+
+abstract: "A curated ontology of 115 recurring software elements across six families (Objects, Properties, Actions, Interfaces, Intelligence, Rules), with typed reference implementations and a composition framework for LLM-based coding agents. The core thesis is that most application software can be expressed as compositions of a finite set of curated atoms, and that composition from such a library is more reliable and token-efficient than regenerating equivalent patterns on every task."
