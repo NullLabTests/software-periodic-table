@@ -8,59 +8,55 @@
  * - Interface: Kanban + Table
  */
 
-import { createUser } from "../atoms/objects/user.js";
-import { createTask } from "../atoms/objects/task.js";
-import { defineKanban, materializeKanban } from "../atoms/interfaces/kanban.js";
-import { defineTable, materializeTable } from "../atoms/interfaces/table.js";
-import {
-  createAction,
-  updateAction,
-  executeInMemory,
-} from "../atoms/actions/crud.js";
+import { executeInMemory, updateAction } from '../atoms/actions/crud.js';
+import { defineKanban, materializeKanban } from '../atoms/interfaces/kanban.js';
+import { defineTable, materializeTable } from '../atoms/interfaces/table.js';
+import { createTask } from '../atoms/objects/task.js';
+import { createUser } from '../atoms/objects/user.js';
 
 // ---------------------------------------------------------------------------
 // 1. Seed data using Object atoms
 // ---------------------------------------------------------------------------
 
 const alice = createUser({
-  id: "u_alice",
-  email: "alice@example.com",
-  name: "Alice",
+  id: 'u_alice',
+  email: 'alice@example.com',
+  name: 'Alice',
 });
 
 const bob = createUser({
-  id: "u_bob",
-  email: "bob@example.com",
-  name: "Bob",
+  id: 'u_bob',
+  email: 'bob@example.com',
+  name: 'Bob',
 });
 
 const tasks = [
   createTask({
-    id: "t1",
-    title: "Define ontology",
-    status: "done",
-    priority: "high",
+    id: 't1',
+    title: 'Define ontology',
+    status: 'done',
+    priority: 'high',
     owner: alice.id,
   }),
   createTask({
-    id: "t2",
-    title: "Implement core atoms",
-    status: "in_progress",
-    priority: "high",
+    id: 't2',
+    title: 'Implement core atoms',
+    status: 'in_progress',
+    priority: 'high',
     owner: alice.id,
   }),
   createTask({
-    id: "t3",
-    title: "Write composition prompts",
-    status: "todo",
-    priority: "medium",
+    id: 't3',
+    title: 'Write composition prompts',
+    status: 'todo',
+    priority: 'medium',
     owner: bob.id,
   }),
   createTask({
-    id: "t4",
-    title: "Add evaluation harness",
-    status: "backlog",
-    priority: "low",
+    id: 't4',
+    title: 'Add evaluation harness',
+    status: 'backlog',
+    priority: 'low',
     owner: bob.id,
   }),
 ];
@@ -70,26 +66,26 @@ const tasks = [
 // ---------------------------------------------------------------------------
 
 const kanban = defineKanban({
-  objectType: "Task",
+  objectType: 'Task',
   columns: [
-    { id: "backlog", title: "Backlog", statusValue: "backlog" },
-    { id: "todo", title: "Todo", statusValue: "todo" },
-    { id: "in_progress", title: "In Progress", statusValue: "in_progress" },
-    { id: "done", title: "Done", statusValue: "done" },
+    { id: 'backlog', title: 'Backlog', statusValue: 'backlog' },
+    { id: 'todo', title: 'Todo', statusValue: 'todo' },
+    { id: 'in_progress', title: 'In Progress', statusValue: 'in_progress' },
+    { id: 'done', title: 'Done', statusValue: 'done' },
   ],
-  cardTitleKey: "title",
-  cardSubtitleKey: "priority",
+  cardTitleKey: 'title',
+  cardSubtitleKey: 'priority',
 });
 
 const table = defineTable({
-  objectType: "Task",
+  objectType: 'Task',
   columns: [
-    { key: "title", label: "Title", sortable: true },
-    { key: "status", label: "Status", filterable: true },
-    { key: "priority", label: "Priority", sortable: true },
-    { key: "owner", label: "Owner" },
+    { key: 'title', label: 'Title', sortable: true },
+    { key: 'status', label: 'Status', filterable: true },
+    { key: 'priority', label: 'Priority', sortable: true },
+    { key: 'owner', label: 'Owner' },
   ],
-  rowActions: ["View", "Update", "Delete"],
+  rowActions: ['View', 'Update', 'Delete'],
 });
 
 // ---------------------------------------------------------------------------
@@ -101,12 +97,12 @@ const taskStore = new Map<string, unknown>();
 for (const t of tasks) {
   taskStore.set(t.id, t.properties);
 }
-store.set("Task", taskStore);
+store.set('Task', taskStore);
 
 // Move a task
-const moveReq = updateAction("Task", "t3", { status: "in_progress" }, bob.id);
+const moveReq = updateAction('Task', 't3', { status: 'in_progress' }, bob.id);
 const moveResult = executeInMemory(store, moveReq);
-console.log("Move result:", moveResult);
+console.log('Move result:', moveResult);
 
 // ---------------------------------------------------------------------------
 // 4. Materialize views
@@ -117,7 +113,7 @@ const currentTasks = Array.from(taskStore.values()) as Record<string, unknown>[]
 const board = materializeKanban(kanban, currentTasks);
 const tableView = materializeTable(table, currentTasks);
 
-console.log("\n=== Kanban Board ===");
+console.log('\n=== Kanban Board ===');
 for (const [colId, cards] of Object.entries(board)) {
   console.log(`\n[${colId}] (${cards.length})`);
   for (const card of cards) {
@@ -125,14 +121,10 @@ for (const [colId, cards] of Object.entries(board)) {
   }
 }
 
-console.log("\n=== Table View ===");
-console.log(
-  tableView.columns.map((c) => c.label).join(" | ")
-);
+console.log('\n=== Table View ===');
+console.log(tableView.columns.map((c) => c.label).join(' | '));
 for (const row of tableView.rows) {
-  console.log(
-    [row.title, row.status, row.priority, row.owner].join(" | ")
-  );
+  console.log([row.title, row.status, row.priority, row.owner].join(' | '));
 }
 
-console.log("\nComposition complete. Atoms used: User, Task, Status, Priority, Owner, Create/Update, Kanban, Table.");
+console.log('\nComposition complete. Atoms used: User, Task, Status, Priority, Owner, Create/Update, Kanban, Table.');

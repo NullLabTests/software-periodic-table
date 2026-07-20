@@ -6,9 +6,15 @@
   "scripts": {
     "build": "tsc",
     "example": "tsx examples/task-board.ts",
+    "example:crm": "tsx examples/crm-contacts.ts",
+    "example:product": "tsx examples/product-catalog.ts",
+    "example:invoice": "tsx examples/invoice-dashboard.ts",
     "eval": "tsx eval/runner.ts",
+    "eval:llm": "LLM_API_KEY=$OPENAI_API_KEY tsx eval/runner.ts",
     "validate": "tsx scripts/validate-ontology.ts",
-    "check": "tsc --noEmit"
+    "check": "tsc --noEmit",
+    "format": "biome check --write",
+    "lint": "biome check"
   },
   "keywords": [
     "software-ontology",
@@ -25,8 +31,9 @@
     "url": "https://github.com/nulllabtests/software-periodic-table"
   },
   "devDependencies": {
+    "@biomejs/biome": "^2.5.4",
+    "@types/node": "^22.0.0",
     "tsx": "^4.19.0",
-    "typescript": "^5.6.0",
-    "@types/node": "^22.0.0"
+    "typescript": "^5.6.0"
   }
 }

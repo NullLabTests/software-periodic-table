@@ -9,13 +9,7 @@
 
 export type AtomId = number;
 export type AtomSymbol = string;
-export type Family =
-  | "objects"
-  | "properties"
-  | "actions"
-  | "interfaces"
-  | "intelligence"
-  | "rules";
+export type Family = 'objects' | 'properties' | 'actions' | 'interfaces' | 'intelligence' | 'rules';
 
 export interface AtomMeta {
   id: AtomId;
@@ -46,17 +40,7 @@ export interface ObjectAtom extends Atom {
  */
 export interface PropertyDef {
   key: string;
-  type:
-    | "string"
-    | "number"
-    | "boolean"
-    | "date"
-    | "datetime"
-    | "currency"
-    | "enum"
-    | "json"
-    | "id"
-    | "reference";
+  type: 'string' | 'number' | 'boolean' | 'date' | 'datetime' | 'currency' | 'enum' | 'json' | 'id' | 'reference';
   required?: boolean;
   enumValues?: string[];
   description?: string;
@@ -88,7 +72,7 @@ export interface InterfaceSpec {
   columns?: unknown[];
   filters?: string[];
   actions?: string[];
-  layout?: Record<string, unknown>;
+  layout?: unknown;
 }
 
 /**

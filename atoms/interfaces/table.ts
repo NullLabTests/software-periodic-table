@@ -1,11 +1,11 @@
-import type { AtomMeta, InterfaceSpec } from "../core.js";
+import type { AtomMeta, InterfaceSpec } from '../core.js';
 
 export const TableMeta: AtomMeta = {
   id: 93,
-  symbol: "Tb",
-  name: "Table",
-  family: "interfaces",
-  description: "Structured rows and columns. The default workhorse view.",
+  symbol: 'Tb',
+  name: 'Table',
+  family: 'interfaces',
+  description: 'Structured rows and columns. The default workhorse view.',
 };
 
 export interface TableColumn {
@@ -17,7 +17,7 @@ export interface TableColumn {
 }
 
 export interface TableSpec extends InterfaceSpec {
-  kind: "Table";
+  kind: 'Table';
   columns: TableColumn[];
   pageSize?: number;
   rowActions?: string[];
@@ -32,20 +32,20 @@ export function defineTable(opts: {
   bulkActions?: string[];
 }): TableSpec {
   return {
-    kind: "Table",
+    kind: 'Table',
     objectType: opts.objectType,
     columns: opts.columns,
     pageSize: opts.pageSize ?? 25,
-    rowActions: opts.rowActions ?? ["View", "Update", "Delete"],
+    rowActions: opts.rowActions ?? ['View', 'Update', 'Delete'],
     bulkActions: opts.bulkActions ?? [],
-    actions: ["Create", "Filter", "Sort", "Export"],
+    actions: ['Create', 'Filter', 'Sort', 'Export'],
   };
 }
 
 /** Minimal pure function that turns data + spec into a renderable structure. */
 export function materializeTable(
   spec: TableSpec,
-  rows: Record<string, unknown>[]
+  rows: Record<string, unknown>[],
 ): {
   columns: TableColumn[];
   rows: Record<string, unknown>[];

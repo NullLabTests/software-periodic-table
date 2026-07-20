@@ -42,58 +42,60 @@ Select from these before inventing new ones. Compose rather than regenerate.
 `.trim();
 
 export const COMPOSITION_PLAN_SCHEMA = {
-  type: "object",
-  required: ["objects", "properties", "actions", "interfaces"],
+  type: 'object',
+  required: ['objects', 'properties', 'actions', 'interfaces'],
   properties: {
     objects: {
-      type: "array",
-      items: { type: "string" },
-      description: "Names of Object atoms used (e.g. User, Task, Invoice)",
+      type: 'array',
+      items: { type: 'string' },
+      description: 'Names of Object atoms used (e.g. User, Task, Invoice)',
     },
     properties: {
-      type: "array",
-      items: { type: "string" },
-      description: "Property atoms or keys attached to the objects (e.g. Status, Owner, CreatedAt)",
+      type: 'array',
+      items: { type: 'string' },
+      description: 'Property atoms or keys attached to the objects (e.g. Status, Owner, CreatedAt)',
     },
     actions: {
-      type: "array",
-      items: { type: "string" },
-      description: "Action atoms required (e.g. Create, Update, Notify, Export)",
+      type: 'array',
+      items: { type: 'string' },
+      description: 'Action atoms required (e.g. Create, Update, Notify, Export)',
     },
     interfaces: {
-      type: "array",
-      items: { type: "string" },
-      description: "Interface atoms chosen for presentation (e.g. Table, Kanban, Form)",
+      type: 'array',
+      items: { type: 'string' },
+      description: 'Interface atoms chosen for presentation (e.g. Table, Kanban, Form)',
     },
     intelligence: {
-      type: "array",
-      items: { type: "string" },
-      description: "Optional Intelligence atoms (e.g. Search, Summarize, Recommend)",
+      type: 'array',
+      items: { type: 'string' },
+      description: 'Optional Intelligence atoms (e.g. Search, Summarize, Recommend)',
     },
     rules: {
-      type: "array",
-      items: { type: "string" },
-      description: "Optional Rules atoms (e.g. Permission, Trigger, Audit)",
+      type: 'array',
+      items: { type: 'string' },
+      description: 'Optional Rules atoms (e.g. Permission, Trigger, Audit)',
     },
     notes: {
-      type: "string",
-      description: "Any composition rationale or open questions",
+      type: 'string',
+      description: 'Any composition rationale or open questions',
     },
   },
 };
 
-export function formatTableSummary(elements: { symbol: string; name: string; family: string; description: string }[]): string {
+export function formatTableSummary(
+  elements: { symbol: string; name: string; family: string; description: string }[],
+): string {
   const byFamily: Record<string, string[]> = {};
   for (const el of elements) {
     if (!byFamily[el.family]) byFamily[el.family] = [];
     byFamily[el.family].push(`${el.symbol} (${el.name}): ${el.description}`);
   }
-  const lines: string[] = ["Available Software Periodic Table elements:"];
+  const lines: string[] = ['Available Software Periodic Table elements:'];
   for (const [family, items] of Object.entries(byFamily)) {
     lines.push(`\n${family}:`);
     for (const item of items) {
       lines.push(`  ${item}`);
     }
   }
-  return lines.join("\n");
+  return lines.join('\n');
 }

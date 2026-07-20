@@ -11,11 +11,11 @@
  * Usage: npx tsx scripts/validate-ontology.ts
  */
 
-import * as fs from "node:fs";
-import * as path from "node:path";
+import * as fs from 'node:fs';
+import * as path from 'node:path';
 
-const __dirname = new URL(".", import.meta.url).pathname;
-const ONTOLOGY_PATH = path.resolve(__dirname, "../ontology/periodic-table.json");
+const __dirname = new URL('.', import.meta.url).pathname;
+const ONTOLOGY_PATH = path.resolve(__dirname, '../ontology/periodic-table.json');
 
 interface OntologyElement {
   id: number;
@@ -40,14 +40,7 @@ interface Ontology {
   compositionNotes: Record<string, string>;
 }
 
-const VALID_FAMILIES = new Set([
-  "objects",
-  "properties",
-  "actions",
-  "interfaces",
-  "intelligence",
-  "rules",
-]);
+const VALID_FAMILIES = new Set(['objects', 'properties', 'actions', 'interfaces', 'intelligence', 'rules']);
 
 const FAMILY_RANGES: Record<string, [number, number]> = {
   objects: [1, 35],
@@ -72,9 +65,9 @@ function warn(msg: string): void {
 }
 
 function main(): void {
-  console.log("Validating ontology...\n");
+  console.log('Validating ontology...\n');
 
-  const raw = fs.readFileSync(ONTOLOGY_PATH, "utf-8");
+  const raw = fs.readFileSync(ONTOLOGY_PATH, 'utf-8');
   const ontology: Ontology = JSON.parse(raw);
 
   console.log(`Version: ${ontology.version}`);
@@ -107,7 +100,7 @@ function main(): void {
 
   for (const elem of ontology.elements) {
     // Required fields
-    if (typeof elem.id !== "number") error(`Element missing id: ${JSON.stringify(elem)}`);
+    if (typeof elem.id !== 'number') error(`Element missing id: ${JSON.stringify(elem)}`);
     if (!elem.symbol) error(`Element ${elem.id} missing symbol`);
     if (!elem.name) error(`Element ${elem.id} missing name`);
     if (!elem.family) error(`Element ${elem.id} missing family`);

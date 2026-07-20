@@ -90,11 +90,17 @@ npm install
 # Inspect the ontology (115 elements)
 npx tsx scripts/validate-ontology.ts
 
-# Run the task-board composition example
-npx tsx examples/task-board.ts
+# Run composition examples
+npx tsx examples/task-board.ts          # Task + Kanban board
+npx tsx examples/crm-contacts.ts        # CRM contact management
+npx tsx examples/product-catalog.ts     # Product catalog + AI Search/Recommend
+npx tsx examples/invoice-dashboard.ts   # Invoice dashboard + Filter/Export/Chart
 
-# Run the evaluation harness
+# Run the evaluation harness (mock mode)
 npx tsx eval/runner.ts
+
+# Run with real LLM (requires OPENAI_API_KEY)
+OPENAI_API_KEY=sk-... npx tsx eval/runner.ts
 ```
 
 ## How to Use with Coding Agents

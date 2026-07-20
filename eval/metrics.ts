@@ -1,4 +1,4 @@
-import type { Family } from "../atoms/core.js";
+import type { Family } from '../atoms/core.js';
 
 export interface CompositionPlan {
   objects: string[];
@@ -40,7 +40,7 @@ export function estimateTokens(text: string): number {
  */
 export function checkWithinTable(
   plan: CompositionPlan,
-  knownSymbols: Set<string>
+  knownSymbols: Set<string>,
 ): { withinTable: boolean; violations: string[] } {
   const violations: string[] = [];
 
@@ -103,12 +103,12 @@ export function summarizeResults(results: EvalResult[]): string {
   summary += `Per-Scenario Results:\n`;
   for (const r of results) {
     summary += `  ${r.scenarioId}:\n`;
-    summary += `    Atoms used: ${r.atomCount} (families: ${r.familiesCovered.join(", ")})\n`;
+    summary += `    Atoms used: ${r.atomCount} (families: ${r.familiesCovered.join(', ')})\n`;
     summary += `    Within table: ${r.withinTable}\n`;
     summary += `    Token estimate: ${r.tokenEstimate.totalTokens} (plan: ${r.tokenEstimate.planTokens}, impl: ${r.tokenEstimate.implementationTokens})\n`;
     summary += `    Acceptance: ${r.acceptanceChecks.filter((c) => c.passed).length}/${r.acceptanceChecks.length} passed\n`;
     summary += `    Valid: ${r.valid}\n`;
-    summary += `    Atoms: ${[r.plan.objects, r.plan.properties, r.plan.actions, r.plan.interfaces, r.plan.intelligence, r.plan.rules].flat().join(", ")}\n\n`;
+    summary += `    Atoms: ${[r.plan.objects, r.plan.properties, r.plan.actions, r.plan.interfaces, r.plan.intelligence, r.plan.rules].flat().join(', ')}\n\n`;
   }
 
   return summary;
