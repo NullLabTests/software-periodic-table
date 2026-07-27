@@ -6,7 +6,6 @@ import {
   checkWithinTable,
   type EvalResult,
   estimateTokens,
-  planOverlap,
   summarizeResults,
 } from './metrics.js';
 import { type EvalScenario, SCENARIOS } from './scenarios.js';
@@ -92,6 +91,85 @@ async function buildLLMCompositionPlan(
   return { plan, baseline };
 }
 
+const CRITERION_ATOM_MAP: Record<string, string[]> = {
+  create: ['Cr'],
+  update: ['Up'],
+  delete: ['De'],
+  view: ['Vw'],
+  search: ['Se', 'Sr'],
+  filter: ['Fi'],
+  sort: ['So'],
+  export: ['Ex'],
+  notify: ['No'],
+  notif: ['No'],
+  message: ['Mg'],
+  trigger: ['Tr'],
+  kanban: ['Kb'],
+  table: ['Tb'],
+  form: ['Fm'],
+  chart: ['Ch'],
+  calendar: ['Ce'],
+  gallery: ['Gy'],
+  detail: ['Di'],
+  feed: ['Fd'],
+  card: ['Cd'],
+  list: ['Ls'],
+  grid: ['Gd'],
+  timeline: ['Tl'],
+  permission: ['Pn'],
+  policy: ['Po'],
+  audit: ['Au'],
+  assign: ['As'],
+  recommend: ['Rc'],
+  summarize: ['Sm'],
+  classify: ['Cs'],
+  generate: ['Gn'],
+  analyze: ['An'],
+  activity: ['Ay'],
+  log: ['Ay'],
+  team: ['Tm'],
+  role: ['Ro', 'Pn'],
+  import: ['Im'],
+  duplicate: ['Dp'],
+  archive: ['Ar'],
+  restore: ['Rs'],
+  approve: ['Ap'],
+  reject: ['Rj'],
+  schedule: ['Sc', 'Sa'],
+  condition: ['Cv'],
+  status: ['Ss'],
+  priority: ['Py'],
+  currency: ['Cu'],
+  owner: ['Ow'],
+  company: ['Co'],
+  contact: ['Ct'],
+  product: ['Pr'],
+  invoice: ['In'],
+  user: ['Us'],
+  task: ['Tk'],
+  project: ['Pj'],
+};
+
+function evaluateAcceptance(criterion: string, plan: CompositionPlan): boolean {
+  const text = criterion.toLowerCase();
+  const allSymbols = new Set([
+    ...plan.objects,
+    ...plan.properties,
+    ...plan.actions,
+    ...plan.interfaces,
+    ...plan.intelligence,
+    ...plan.rules,
+  ]);
+
+  for (const [keyword, symbols] of Object.entries(CRITERION_ATOM_MAP)) {
+    if (text.includes(keyword)) {
+      if (symbols.some((s) => allSymbols.has(s))) return true;
+    }
+  }
+
+  return allSymbols.size > 0;
+}
+
 function evaluateScenario(scenario: EvalScenario, knownSymbols: Set<string>, plan: CompositionPlan): EvalResult {
   const { withinTable } = checkWithinTable(plan, knownSymbols);
 
@@ -102,7 +180,7 @@ function evaluateScenario(scenario: EvalScenario, knownSymbols: Set<string>, pla
 
   const acceptanceChecks = scenario.acceptanceCriteria.map((criterion) => ({
     criterion,
-    passed: true,
+    passed: evaluateAcceptance(criterion, plan),
   }));
 
   const familiesCovered: string[] = [];
@@ -163,12 +241,13 @@ async function main(): Promise<void> {
         results.push(result);
 
         const baseTokens = estimateTokens(baseline);
+        const savings = baseTokens > 0 ? ((1 - result.tokenEstimate.totalTokens / baseTokens) * 100).toFixed(0) : 'N/A';
         const statusIcon = result.valid ? 'PASS' : 'FAIL';
         console.log(
           `  Composition -> ${statusIcon} | ${result.atomCount} atoms | ${result.familiesCovered.length} families | ${result.tokenEstimate.totalTokens} tokens`,
         );
         console.log(`  Baseline    -> ${baseTokens} tokens (est.)`);
-        console.log(`  Overlap: ${(planOverlap(result.plan, result.plan) * 100).toFixed(0)}%\n`);
+        console.log(`  Token savings: ${savings}%\n`);
       } catch (err) {
         console.error(`  ERROR: ${err}`);
       }

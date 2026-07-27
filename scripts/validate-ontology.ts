@@ -7,6 +7,7 @@
  * - Symbols are unique and exactly 2 characters
  * - Families are from the known set
  * - No duplicate names
+ * - composesWith references valid symbols
  *
  * Usage: npx tsx scripts/validate-ontology.ts
  */
@@ -23,6 +24,7 @@ interface OntologyElement {
   name: string;
   family: string;
   description: string;
+  composesWith?: string[];
 }
 
 interface OntologyFamily {
@@ -129,6 +131,22 @@ function main(): void {
     if (range) {
       if (elem.id < range[0] || elem.id > range[1]) {
         error(`Element ${elem.id} (${elem.symbol}) outside range for family ${elem.family} [${range}]`);
+      }
+    }
+
+    // composesWith references must be valid symbols
+    if (elem.composesWith) {
+      if (!Array.isArray(elem.composesWith)) {
+        error(`Element ${elem.id} composesWith is not an array`);
+      } else {
+        for (const ref of elem.composesWith) {
+          if (ref.length !== 2) {
+            error(`Element ${elem.id} composesWith entry "${ref}" is not a 2-char symbol`);
+          }
+          if (!seenSymbols.has(ref) && ref !== elem.symbol) {
+            warn(`Element ${elem.id} composesWith "${ref}" not yet defined (may be forward reference)`);
+          }
+        }
       }
     }
   }

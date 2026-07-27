@@ -1,0 +1,112 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/nulllabtests/software-periodic-table/ontology/periodic-table.schema.json",
+  "title": "Software Periodic Table Ontology",
+  "description": "Schema for the canonical periodic-table.json ontology of 115 software building blocks",
+  "type": "object",
+  "required": ["version", "description", "families", "elements", "compositionNotes"],
+  "properties": {
+    "version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$",
+      "description": "Semantic version of the ontology"
+    },
+    "description": {
+      "type": "string",
+      "description": "High-level description of the ontology"
+    },
+    "families": {
+      "type": "array",
+      "minItems": 6,
+      "maxItems": 6,
+      "items": {
+        "type": "object",
+        "required": ["id", "name", "description", "range"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "enum": ["objects", "properties", "actions", "interfaces", "intelligence", "rules"]
+          },
+          "name": { "type": "string" },
+          "description": { "type": "string" },
+          "range": {
+            "type": "array",
+            "minItems": 2,
+            "maxItems": 2,
+            "items": { "type": "integer", "minimum": 1, "maximum": 115 }
+          }
+        }
+      }
+    },
+    "elements": {
+      "type": "array",
+      "minItems": 115,
+      "maxItems": 115,
+      "items": {
+        "type": "object",
+        "required": ["id", "symbol", "name", "family", "description"],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 115
+          },
+          "symbol": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 2,
+            "pattern": "^[A-Z][a-z]$"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "family": {
+            "type": "string",
+            "enum": ["objects", "properties", "actions", "interfaces", "intelligence", "rules"]
+          },
+          "description": {
+            "type": "string",
+            "minLength": 1
+          },
+          "composesWith": {
+            "type": "array",
+            "items": { "type": "string", "minLength": 2, "maxLength": 2 },
+            "description": "Symbols of atoms this element commonly composes with"
+          }
+        },
+        "allOf": [
+          {
+            "if": { "properties": { "family": { "const": "objects" } } },
+            "then": { "properties": { "id": { "minimum": 1, "maximum": 35 } } }
+          },
+          {
+            "if": { "properties": { "family": { "const": "properties" } } },
+            "then": { "properties": { "id": { "minimum": 36, "maximum": 60 } } }
+          },
+          {
+            "if": { "properties": { "family": { "const": "actions" } } },
+            "then": { "properties": { "id": { "minimum": 61, "maximum": 85 } } }
+          },
+          {
+            "if": { "properties": { "family": { "const": "interfaces" } } },
+            "then": { "properties": { "id": { "minimum": 86, "maximum": 100 } } }
+          },
+          {
+            "if": { "properties": { "family": { "const": "intelligence" } } },
+            "then": { "properties": { "id": { "minimum": 101, "maximum": 108 } } }
+          },
+          {
+            "if": { "properties": { "family": { "const": "rules" } } },
+            "then": { "properties": { "id": { "minimum": 109, "maximum": 115 } } }
+          }
+        ]
+      }
+    },
+    "compositionNotes": {
+      "type": "object",
+      "required": ["objects", "properties", "actions", "interfaces", "intelligence", "rules"],
+      "additionalProperties": { "type": "string" }
+    }
+  }
+}
