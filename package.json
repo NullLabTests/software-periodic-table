@@ -1,6 +1,6 @@
 {
   "name": "software-periodic-table",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "A finite ontology of 115 recurring software elements and a composition framework for LLM-based coding agents",
   "type": "module",
   "scripts": {
@@ -12,6 +12,7 @@
     "eval": "tsx eval/runner.ts",
     "eval:llm": "LLM_API_KEY=$OPENAI_API_KEY tsx eval/runner.ts",
     "validate": "tsx scripts/validate-ontology.ts",
+    "coverage": "tsx scripts/coverage.ts",
     "check": "tsc --noEmit",
     "format": "biome check --write",
     "lint": "biome check"

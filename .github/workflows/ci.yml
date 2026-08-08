@@ -22,6 +22,8 @@ jobs:
 
       - run: npm run validate
 
+      - run: npm run coverage
+
       - run: npm run lint
 
       - run: npm run check
