@@ -91,7 +91,7 @@ npm install
 # Inspect the ontology (115 elements)
 npx tsx scripts/validate-ontology.ts
 
-# Report reference-implementation coverage (44/115 atoms implemented)
+# Report reference-implementation coverage (71/115 atoms implemented)
 npx tsx scripts/coverage.ts
 
 # Run composition examples
@@ -127,7 +127,7 @@ See `docs/AGENT_USAGE.md` for a detailed walkthrough of both patterns, including
 
 ## Status
 
-The ontology (115 elements) is stable. Reference implementations exist for 44 atoms (38%) across all six families: 100% of Intelligence, 71% of Rules, 44% of Actions, 40% of Interfaces, and ~25% of Objects and Properties (run `npm run coverage` for the live report). The composition system prompt, examples, and evaluation harness are functional. Remaining work includes expanding reference coverage, implementing actual LLM-based evaluation runs, and collecting empirical results for publication.
+The ontology (115 elements) is stable. Reference implementations exist for 71 atoms (62%) across all six families: 100% of Objects and Intelligence, 71% of Rules, 44% of Actions, 40% of Interfaces, and 24% of Properties (run `npm run coverage` for the live report). The composition system prompt, examples, and evaluation harness are functional. Remaining work includes expanding reference coverage, implementing actual LLM-based evaluation runs, and collecting empirical results for publication.
 
 ## Limitations
 
