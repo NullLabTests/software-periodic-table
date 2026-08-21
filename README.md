@@ -2,6 +2,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![TypeScript](https://img.shields.io/badge/TypeScript-strict-blue.svg)](tsconfig.json)
+[![Atoms](https://img.shields.io/badge/atoms-115-6f42c1.svg)](ontology/periodic-table.json)
 
 **A finite ontology of recurring software elements — and a composition framework for building applications with LLMs and coding agents.**
 
