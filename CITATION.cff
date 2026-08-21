@@ -2,8 +2,8 @@ cff-version: 1.2.0
 message: "If you use this work in research, please cite it as below."
 title: "Software Periodic Table: A Finite Ontology of Recurring Application Elements for Compositional Code Generation"
 type: software
-version: 0.3.0
-date-released: 2026-07-19
+version: 0.4.0
+date-released: 2026-08-21
 license: MIT
 
 authors:

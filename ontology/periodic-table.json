@@ -1,5 +1,5 @@
 {
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Canonical Periodic Table of Software Elements. Finite building blocks for compositional application development and LLM code generation.",
   "families": [
     {

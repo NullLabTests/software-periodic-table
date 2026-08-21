@@ -1,6 +1,6 @@
 {
   "name": "software-periodic-table",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "A finite ontology of 115 recurring software elements and a composition framework for LLM-based coding agents",
   "type": "module",
   "scripts": {
