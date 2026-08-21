@@ -1,5 +1,7 @@
 # Software Periodic Table
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 **A finite ontology of recurring software elements — and a composition framework for building applications with LLMs and coding agents.**
 
 > The central observation is simple: most application software is not invented from scratch. It is composed from a recurring set of nouns, attributes, verbs, views, AI primitives, and automation rules. Regenerating these elements on every generation pass wastes tokens, introduces drift, and produces systems that are harder to verify. A curated, retrievable library of proven atoms turns generation into selection and wiring — a fundamentally smaller and more reliable search space.
