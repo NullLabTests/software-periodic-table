@@ -1,6 +1,7 @@
 # Software Periodic Table
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![TypeScript](https://img.shields.io/badge/TypeScript-strict-blue.svg)](tsconfig.json)
 
 **A finite ontology of recurring software elements — and a composition framework for building applications with LLMs and coding agents.**
 
