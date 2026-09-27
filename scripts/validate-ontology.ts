@@ -6,8 +6,8 @@
  * - IDs are unique and within family ranges
  * - Symbols are unique and exactly 2 characters
  * - Families are from the known set
- * - No duplicate names
- * - composesWith references valid symbols
+ * - No duplicate names within a family (cross-family reuse is intentional)
+ * - composesWith references resolve to defined symbols, in either direction
  *
  * Usage: npx tsx scripts/validate-ontology.ts
  */
@@ -55,6 +55,7 @@ const FAMILY_RANGES: Record<string, [number, number]> = {
 
 let errors = 0;
 let warnings = 0;
+let infos = 0;
 
 function error(msg: string): void {
   console.error(`  ERROR: ${msg}`);
@@ -64,6 +65,11 @@ function error(msg: string): void {
 function warn(msg: string): void {
   console.warn(`  WARN: ${msg}`);
   warnings++;
+}
+
+function info(msg: string): void {
+  console.log(`  INFO: ${msg}`);
+  infos++;
 }
 
 function main(): void {
@@ -90,15 +96,21 @@ function main(): void {
     const expectedRange = FAMILY_RANGES[fam.id];
     if (expectedRange) {
       if (fam.range[0] !== expectedRange[0] || fam.range[1] !== expectedRange[1]) {
-        error(`Family ${fam.id} range [${fam.range}] does not match expected [${expectedRange}]`);
+        error(`Family ${fam.id} range [${fam.range.join(', ')}] does not match expected [${expectedRange.join(', ')}]`);
       }
     }
   }
 
+  // Collect every declared symbol up front so that composesWith references can
+  // resolve in either direction. Doing this incrementally would flag every
+  // forward reference (an element composed with a later-defined element) as
+  // unresolved, since the target symbol would not have been seen yet.
+  const declaredSymbols = new Set<string>(ontology.elements.map((e) => e.symbol));
+
   // Validate elements
   const seenIds = new Set<number>();
   const seenSymbols = new Set<string>();
-  const seenNames = new Set<string>();
+  const seenNames = new Map<string, OntologyElement>();
 
   for (const elem of ontology.elements) {
     // Required fields
@@ -117,9 +129,23 @@ function main(): void {
     if (seenSymbols.has(elem.symbol)) error(`Duplicate symbol: ${elem.symbol}`);
     seenSymbols.add(elem.symbol);
 
-    // Name uniqueness
-    if (seenNames.has(elem.name)) warn(`Duplicate name: ${elem.name} (id ${elem.id})`);
-    seenNames.add(elem.name);
+    // Name uniqueness. The same word legitimately names elements in different
+    // families (e.g. an Email object and an Email property), so only a repeat
+    // inside one family indicates a real collision.
+    const priorName = seenNames.get(elem.name);
+    if (priorName) {
+      const detail = `"${priorName.family}" (${priorName.symbol}, id ${priorName.id})`;
+      if (priorName.family === elem.family) {
+        warn(
+          `Duplicate name in family ${elem.family}: "${elem.name}" — ${elem.symbol} (id ${elem.id}) collides with ${detail}`,
+        );
+      } else {
+        info(
+          `Name "${elem.name}" reused across families: ${detail} and "${elem.family}" (${elem.symbol}, id ${elem.id})`,
+        );
+      }
+    }
+    seenNames.set(elem.name, elem);
 
     // Family validation
     if (!VALID_FAMILIES.has(elem.family)) {
@@ -134,17 +160,27 @@ function main(): void {
       }
     }
 
-    // composesWith references must be valid symbols
+    // composesWith references must resolve to a declared symbol. Reference
+    // order is irrelevant, so both backward and forward references are valid.
     if (elem.composesWith) {
       if (!Array.isArray(elem.composesWith)) {
         error(`Element ${elem.id} composesWith is not an array`);
       } else {
+        const localSeen = new Set<string>();
         for (const ref of elem.composesWith) {
-          if (ref.length !== 2) {
+          if (typeof ref !== 'string' || ref.length !== 2) {
             error(`Element ${elem.id} composesWith entry "${ref}" is not a 2-char symbol`);
+            continue;
           }
-          if (!seenSymbols.has(ref) && ref !== elem.symbol) {
-            warn(`Element ${elem.id} composesWith "${ref}" not yet defined (may be forward reference)`);
+          if (localSeen.has(ref)) {
+            warn(`Element ${elem.id} (${elem.symbol}) lists "${ref}" in composesWith more than once`);
+          }
+          localSeen.add(ref);
+          if (ref === elem.symbol) {
+            warn(`Element ${elem.id} (${elem.symbol}) composesWith itself`);
+          }
+          if (!declaredSymbols.has(ref)) {
+            error(`Element ${elem.id} (${elem.symbol}) composesWith unknown symbol "${ref}"`);
           }
         }
       }
@@ -163,7 +199,9 @@ function main(): void {
   }
 
   // Summary
-  console.log(`\nValidation complete. ${errors} errors, ${warnings} warnings.`);
+  const parts = [`${errors} errors, ${warnings} warnings`];
+  if (infos > 0) parts.push(`${infos} informational notes`);
+  console.log(`\nValidation complete. ${parts.join(', ')}.`);
   if (errors > 0) {
     process.exit(1);
   }

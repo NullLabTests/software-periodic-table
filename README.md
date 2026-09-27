@@ -112,6 +112,16 @@ npx tsx eval/runner.ts
 OPENAI_API_KEY=sk-... npx tsx eval/runner.ts
 ```
 
+## Ontology Validation
+
+`scripts/validate-ontology.ts` is the schema and consistency gate for `ontology/periodic-table.json`, and runs in CI. It resolves `composesWith` references against the full symbol table, so an element may be composed with any other element regardless of declaration order.
+
+| Severity | Meaning | Examples |
+|---|---|---|
+| **ERROR** | Fails the run with exit code 1 | duplicate `id` or `symbol`, unknown family, `id` outside its family range, family range mismatch, `composesWith` pointing at an undefined symbol |
+| **WARN** | Suspicious, but does not fail | duplicate `name` *within* a family, self-composition, repeated entry in one `composesWith` list, unallocated `id` in a family range |
+| **INFO** | Intentional, purely informational | a `name` reused across *different* families (e.g. an Email object and an Email property) |
+
 ## How to Use with Coding Agents
 
 Coding agents and LLMs are the primary consumers of this library. Two usage patterns are supported:
