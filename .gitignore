@@ -1,5 +1,6 @@
 node_modules/
 dist/
 eval-results.json
+eval-results.aggregate.json
 agent-eval-results.json
 *.zip

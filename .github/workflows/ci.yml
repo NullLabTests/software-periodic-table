@@ -6,6 +6,13 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   check:
     runs-on: ubuntu-latest
@@ -27,3 +34,23 @@ jobs:
       - run: npm run lint
 
       - run: npm run check
+
+      - run: npm test
+
+  eval:
+    name: eval (mock, no API key)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      # Exercises the harness end to end without spending tokens. LLM mode is
+      # opt-in locally, so this is what keeps the runner from bit-rotting.
+      - run: npm run eval

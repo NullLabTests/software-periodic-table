@@ -39,3 +39,16 @@ If the answer to (1) is yes, prefer composition. If the concept is highly domain
 ## Evaluation
 
 When you change composition behavior or add significant atoms, consider updating or extending the stubs in `eval/` so that token usage and success rate can be measured over time.
+
+Before opening a PR:
+
+```bash
+npm run validate   # ontology integrity
+npm run lint       # biome
+npm run check      # tsc --noEmit
+npm test           # harness unit tests
+```
+
+CI runs all four plus `npm run eval` in mock mode. If you touch `eval/metrics.ts`
+or `eval/llm.ts`, add or update cases in `eval/metrics.test.ts`; CI will not catch
+a scoring regression otherwise.
