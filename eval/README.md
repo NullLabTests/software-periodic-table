@@ -14,6 +14,15 @@ This runs all scenarios using a mock planner that emits ideal compositions. It v
 - Acceptance criteria coverage
 - Token estimates
 
+Mock mode exercises the scoring pipeline against known-good plans. It does not
+tell you anything about how a real model performs; that needs `LLM_API_KEY`.
+
+Unit tests for the harness itself:
+
+```bash
+npm test
+```
+
 ## Scenarios
 
 Six scenarios are defined in `scenarios.ts`:
@@ -55,31 +64,35 @@ Use `metrics.ts` functions:
 - `checkWithinTable()` — Did the plan stay within the curated set?
 - `planOverlap()` — How similar are the baseline and composition plans?
 - `estimateTokens()` — Estimated token savings.
-- `summarizeResults()` — Aggregate across all scenarios.
+- `summarizeResults()` — Per-scenario detail.
+- `aggregateRepeats()` — Mean and standard deviation across repeated runs.
 
 ## Integrating with a Real LLM
 
-Replace `mockPlanForScenario` in `runner.ts` with a function that calls your LLM provider. Example:
+`runner.ts` already does this. Set `LLM_API_KEY` and it switches from mock plans to
+live model calls:
 
-```typescript
-async function callLLM(prompt: string): Promise<string> {
-  const response = await fetch("https://api.openai.com/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model: "gpt-4",
-      messages: [{ role: "system", content: SYSTEM_PROMPT }, { role: "user", content: prompt }],
-    }),
-  });
-  const data = await response.json();
-  return data.choices[0].message.content;
-}
+```bash
+LLM_API_KEY=... npm run eval:llm
 ```
 
-Then parse the response into a `CompositionPlan` and pass it to the same metric functions.
+`OpenAIProvider` in `llm.ts` uses the Responses API by default and constrains the
+plan with a strict JSON Schema, so the response is parseable without coercion.
+It falls back to Chat Completions automatically for OpenAI-compatible gateways,
+and retries `408`/`409`/`425`/`429`/`5xx` with exponential backoff.
+
+Environment variables:
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `LLM_API_KEY` | unset | Enables live mode when set; unset means mock mode |
+| `LLM_MODEL` | `gpt-4.1` | Model id |
+| `LLM_BASE_URL` | `https://api.openai.com/v1` | Point at vLLM, Ollama, Together, Groq, etc. |
+| `LLM_API` | auto | `responses` or `chat`; auto-detects from the base URL host |
+| `EVAL_REPEATS` | `3` | Samples per scenario, for variance reporting |
+
+To write a different provider, implement the `LLMProvider` interface: two methods,
+`generateCompositionPlan()` and `generateBaseline()`.
 
 ## Metrics
 
@@ -91,3 +104,16 @@ Then parse the response into a `CompositionPlan` and pass it to the same metric 
 | Token estimate | Rough token cost (plan + implementation) |
 | Acceptance rate | Fraction of criteria that pass |
 | Valid | All checks combined |
+
+## On interpreting these numbers
+
+Single-run LLM results are not measurements. The same prompt against the same
+model will vary run to run, so a scenario that passes 3/3 times and one that
+passes 1/3 times look identical if you only keep a single sample. `EVAL_REPEATS`
+defaults to 3 for that reason, and the aggregate summary reports mean and
+standard deviation alongside the valid count. Treat a scenario as reliable only
+when `stable` is true, that is, when every repeat was valid.
+
+`estimateTokens()` remains a character-count heuristic (~4 chars/token), not a
+real tokenizer count. Comparisons between plans are meaningful; absolute token
+numbers are not.

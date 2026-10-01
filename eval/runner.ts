@@ -2,10 +2,13 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { COMPOSITION_SYSTEM_PROMPT, formatTableSummary } from '../composer/prompt.js';
 import {
+  type AggregateResult,
+  aggregateRepeats,
   type CompositionPlan,
   checkWithinTable,
   type EvalResult,
   estimateTokens,
+  summarizeAggregates,
   summarizeResults,
 } from './metrics.js';
 import { type EvalScenario, SCENARIOS } from './scenarios.js';
@@ -79,7 +82,12 @@ async function buildLLMCompositionPlan(
 ): Promise<{ plan: CompositionPlan; baseline: string }> {
   const { OpenAIProvider } = await import('./llm.js');
   const apiKey = process.env.LLM_API_KEY!;
-  const provider = new OpenAIProvider({ apiKey, model: process.env.LLM_MODEL });
+  const provider = new OpenAIProvider({
+    apiKey,
+    model: process.env.LLM_MODEL,
+    baseUrl: process.env.LLM_BASE_URL,
+    api: process.env.LLM_API as 'responses' | 'chat' | undefined,
+  });
 
   const ontologyContext = formatTableSummary(ontologyElements);
   const plan = await provider.generateCompositionPlan(
@@ -232,25 +240,53 @@ async function main(): Promise<void> {
   console.log(`Mode: ${useLLM ? 'LLM (real provider)' : 'Mock (expected atoms)'}\n`);
 
   if (useLLM) {
-    console.log('Running LLM-based evaluation (baseline vs. composition)...\n');
+    // Repeats exist so the summary can report spread. One sample per scenario
+    // cannot tell "reliably valid" apart from "valid on the draw we happened
+    // to make", and a single flaky pass reads exactly like a solid result.
+    const repeats = Math.max(1, Number.parseInt(process.env.EVAL_REPEATS ?? '3', 10) || 1);
+    const aggregates: AggregateResult[] = [];
+
+    console.log(`Running LLM-based evaluation, ${repeats} repeat(s) per scenario...\n`);
     for (const scenario of SCENARIOS) {
       console.log(`Scenario: ${scenario.id} (${scenario.title})`);
-      try {
-        const { plan, baseline } = await buildLLMCompositionPlan(scenario, ontology.elements);
-        const result = evaluateScenario(scenario, knownSymbols, plan);
-        results.push(result);
+      const samples: EvalResult[] = [];
 
-        const baseTokens = estimateTokens(baseline);
-        const savings = baseTokens > 0 ? ((1 - result.tokenEstimate.totalTokens / baseTokens) * 100).toFixed(0) : 'N/A';
-        const statusIcon = result.valid ? 'PASS' : 'FAIL';
-        console.log(
-          `  Composition -> ${statusIcon} | ${result.atomCount} atoms | ${result.familiesCovered.length} families | ${result.tokenEstimate.totalTokens} tokens`,
-        );
-        console.log(`  Baseline    -> ${baseTokens} tokens (est.)`);
-        console.log(`  Token savings: ${savings}%\n`);
-      } catch (err) {
-        console.error(`  ERROR: ${err}`);
+      for (let i = 1; i <= repeats; i++) {
+        try {
+          const { plan, baseline } = await buildLLMCompositionPlan(scenario, ontology.elements);
+          const result = evaluateScenario(scenario, knownSymbols, plan);
+          samples.push(result);
+          results.push(result);
+
+          const baseTokens = estimateTokens(baseline);
+          const savings =
+            baseTokens > 0 ? ((1 - result.tokenEstimate.totalTokens / baseTokens) * 100).toFixed(0) : 'N/A';
+          const statusIcon = result.valid ? 'PASS' : 'FAIL';
+          console.log(
+            `  [${i}/${repeats}] Composition -> ${statusIcon} | ${result.atomCount} atoms | ${result.familiesCovered.length} families | ${result.tokenEstimate.totalTokens} tokens`,
+          );
+          console.log(`           Baseline -> ${baseTokens} tokens (est.), savings ${savings}%`);
+        } catch (err) {
+          console.error(`  [${i}/${repeats}] ERROR: ${err instanceof Error ? err.message : String(err)}`);
+        }
       }
+
+      if (samples.length > 0) {
+        const agg = aggregateRepeats(scenario.id, samples);
+        aggregates.push(agg);
+        console.log(
+          `  => ${agg.validCount}/${agg.repeats} valid | atoms ${agg.atomCount.mean.toFixed(1)} +/- ${agg.atomCount.sd.toFixed(2)} | ${agg.stable ? 'stable' : 'UNSTABLE'}\n`,
+        );
+      } else {
+        console.log(`  => no successful samples\n`);
+      }
+    }
+
+    if (aggregates.length > 0) {
+      console.log(summarizeAggregates(aggregates));
+      const aggPath = path.resolve(__dirname, '../eval-results.aggregate.json');
+      fs.writeFileSync(aggPath, JSON.stringify(aggregates, null, 2));
+      console.log(`Aggregate results written to ${aggPath}\n`);
     }
   } else {
     for (const scenario of SCENARIOS) {

@@ -86,8 +86,84 @@ export function planOverlap(a: CompositionPlan, b: CompositionPlan): number {
 }
 
 /**
+ * A scenario scored across N independent model calls.
+ *
+ * A single sample per scenario cannot distinguish "this approach reliably
+ * works" from "we got lucky on one draw". Repeats plus spread make the
+ * difference visible instead of implied.
+ */
+export interface AggregateResult {
+  scenarioId: string;
+  repeats: number;
+  validCount: number;
+  withinTableCount: number;
+  atomCount: { mean: number; sd: number; min: number; max: number };
+  familiesCovered: { mean: number; sd: number };
+  totalTokens: { mean: number; sd: number; min: number; max: number };
+  acceptanceRate: { mean: number; sd: number };
+  /** Scenarios where every repeat passed, none where any repeat failed. */
+  stable: boolean;
+}
+
+export function mean(xs: number[]): number {
+  return xs.length === 0 ? 0 : xs.reduce((a, b) => a + b, 0) / xs.length;
+}
+
+/** Sample standard deviation. Returns 0 for fewer than two samples. */
+export function stdev(xs: number[]): number {
+  if (xs.length < 2) return 0;
+  const m = mean(xs);
+  return Math.sqrt(xs.reduce((s, x) => s + (x - m) ** 2, 0) / (xs.length - 1));
+}
+
+export function aggregateRepeats(scenarioId: string, samples: EvalResult[]): AggregateResult {
+  const atoms = samples.map((s) => s.atomCount);
+  const tokens = samples.map((s) => s.tokenEstimate.totalTokens);
+  const families = samples.map((s) => s.familiesCovered.length);
+  const rates = samples.map((s) =>
+    s.acceptanceChecks.length === 0 ? 1 : s.acceptanceChecks.filter((c) => c.passed).length / s.acceptanceChecks.length,
+  );
+  const validCount = samples.filter((s) => s.valid).length;
+
+  return {
+    scenarioId,
+    repeats: samples.length,
+    validCount,
+    withinTableCount: samples.filter((s) => s.withinTable).length,
+    atomCount: {
+      mean: mean(atoms),
+      sd: stdev(atoms),
+      min: Math.min(...atoms),
+      max: Math.max(...atoms),
+    },
+    familiesCovered: { mean: mean(families), sd: stdev(families) },
+    totalTokens: { mean: mean(tokens), sd: stdev(tokens), min: Math.min(...tokens), max: Math.max(...tokens) },
+    acceptanceRate: { mean: mean(rates), sd: stdev(rates) },
+    stable: validCount === samples.length,
+  };
+}
+
+/**
  * Generate a human-readable summary of evaluation results.
  */
+export function summarizeAggregates(aggregates: AggregateResult[]): string {
+  let summary = `=== Aggregate Summary (across repeats) ===\n\n`;
+  summary += `Scenarios: ${aggregates.length}\n`;
+  summary += `Stable (every repeat valid): ${aggregates.filter((a) => a.stable).length}/${aggregates.length}\n\n`;
+
+  for (const a of aggregates) {
+    summary += `  ${a.scenarioId}:\n`;
+    summary += `    Repeats: ${a.repeats}, valid: ${a.validCount}/${a.repeats}, within table: ${a.withinTableCount}/${a.repeats}\n`;
+    summary += `    Atoms: ${a.atomCount.mean.toFixed(1)} +/- ${a.atomCount.sd.toFixed(2)} (range ${a.atomCount.min}-${a.atomCount.max})\n`;
+    summary += `    Families: ${a.familiesCovered.mean.toFixed(1)} +/- ${a.familiesCovered.sd.toFixed(2)}\n`;
+    summary += `    Acceptance rate: ${(a.acceptanceRate.mean * 100).toFixed(0)}% +/- ${(a.acceptanceRate.sd * 100).toFixed(1)}pp\n`;
+    summary += `    Total tokens: ${a.totalTokens.mean.toFixed(0)} +/- ${a.totalTokens.sd.toFixed(1)} (range ${a.totalTokens.min}-${a.totalTokens.max})\n`;
+    summary += `    Stable: ${a.stable}\n\n`;
+  }
+
+  return summary;
+}
+
 export function summarizeResults(results: EvalResult[]): string {
   const total = results.length;
   const valid = results.filter((r) => r.valid).length;

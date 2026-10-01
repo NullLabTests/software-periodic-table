@@ -11,6 +11,7 @@
     "example:invoice": "tsx examples/invoice-dashboard.ts",
     "eval": "tsx eval/runner.ts",
     "eval:llm": "LLM_API_KEY=$OPENAI_API_KEY tsx eval/runner.ts",
+    "test": "tsx --test eval/*.test.ts",
     "validate": "tsx scripts/validate-ontology.ts",
     "coverage": "tsx scripts/coverage.ts",
     "check": "tsc --noEmit",
