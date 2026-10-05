@@ -1,22 +1,23 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
+import * as metricsNamespace from '../eval/metrics.js';
 import {
   type CompositionPlan,
   checkWithinTable,
   distinctPlanSymbols,
-  estimateTokens,
+  type EvalResult,
+  findMisfiledNames,
   findUnimplementedAtoms,
-  nameNormalizedJson,
   normalizePlanNames,
   planFamilies,
   planJson,
   planOverlap,
   planSymbols,
-  planTokens,
   scoreFidelity,
+  summarizeResults,
 } from '../eval/metrics.js';
 import { SCENARIOS } from '../eval/scenarios.js';
-import { buildNameIndex, loadOntology, symbolSet, symbolToName } from '../src/ontology.js';
+import { buildNameIndex, loadOntology, symbolSet } from '../src/ontology.js';
 
 const ontology = loadOntology();
 const known = symbolSet(ontology);
@@ -131,38 +132,6 @@ describe('scoreFidelity', () => {
   });
 });
 
-describe('nameNormalizedJson', () => {
-  const names = symbolToName(ontology);
-
-  it('expands every symbol to its full name', () => {
-    const json = nameNormalizedJson(plan({ objects: ['Tk'], actions: ['Cr'] }), names);
-    const parsed = JSON.parse(json) as Record<string, string[]>;
-    assert.deepEqual(parsed.objects, ['Task']);
-    assert.deepEqual(parsed.actions, ['Create']);
-  });
-
-  // The published "39% token savings" came from comparing a plan written in
-  // 2-character symbols against one written in full descriptive names. Expanding
-  // both sides to names removes that advantage, which is the only way the token
-  // column can mean anything.
-  it('equalises plans that differ only in notation', () => {
-    // Both sides expand to full names, so a symbol plan and the equivalent
-    // name plan cost the same. This is the correction to the original
-    // comparison, which charged the symbol side for a 2-character abbreviation.
-    const bySymbol = plan({ objects: ['Tk'], actions: ['Cr'] });
-    const byName = plan({ objects: ['Task'], actions: ['Create'] });
-    assert.equal(
-      estimateTokens(nameNormalizedJson(byName, names)),
-      estimateTokens(nameNormalizedJson(bySymbol, names)),
-    );
-  });
-
-  it('leaves symbols with no name mapping untouched', () => {
-    const json = nameNormalizedJson(plan({ objects: ['Widget'] }), names);
-    assert.deepEqual((JSON.parse(json) as Record<string, string[]>).objects, ['Widget']);
-  });
-});
-
 // Regression: names are not unique across families. Email, Message, Search,
 // Trigger and Schedule each name two elements. A single flat name map kept
 // whichever was declared last, so normalizing a baseline silently moved
@@ -203,13 +172,60 @@ describe('normalizePlanNames family scoping', () => {
     assert.deepEqual(normalized.objects, ['Widget']);
     assert.equal(checkWithinTable(normalized, known).withinTable, false);
   });
+
+  // Regression: the family-scoped lookup originally fell back to a flat `any`
+  // map, which reinstated the family-blindness the function exists to prevent.
+  // A wrong-family name is now left in place and reported, not rehomed.
+  const crossFamily: [string, string][] = [
+    ['objects', 'Search'],
+    ['objects', 'Status'],
+    ['objects', 'Trigger'],
+    ['interfaces', 'Create'],
+    ['rules', 'Message'],
+    ['properties', 'Schedule'],
+    ['objects', 'Audit'],
+    ['rules', 'Grid'],
+  ];
+
+  for (const [family, name] of crossFamily) {
+    it(`does not rehome "${name}" when it is filed under ${family}`, () => {
+      const normalized = normalizePlanNames(plan({ [family]: [name] }), nameIndex);
+      assert.deepEqual(
+        normalized[family as keyof CompositionPlan],
+        [name],
+        'the name must stay put so it is scored as a miss rather than silently credited',
+      );
+    });
+  }
+
+  it('reports a wrong-family name as misfiled rather than as unknown', () => {
+    const misfiled = findMisfiledNames(plan({ objects: ['Search'] }), nameIndex);
+    assert.deepEqual(misfiled, [
+      { family: 'objects', name: 'Search', expectedSymbol: 'Sr', actualFamily: 'intelligence' },
+    ]);
+  });
+
+  it('reports nothing misfiled for a plan that uses symbols correctly', () => {
+    assert.deepEqual(findMisfiledNames(plan({ objects: ['Tk'], intelligence: ['Sr'] }), nameIndex), []);
+  });
+
+  it('reports nothing misfiled for a name that is in no family at all', () => {
+    assert.deepEqual(findMisfiledNames(plan({ objects: ['Widget'] }), nameIndex), []);
+  });
 });
 
-describe('estimateTokens', () => {
-  it('is roughly four characters per token', () => {
-    assert.equal(estimateTokens('abcd'), 1);
-    assert.equal(estimateTokens('abcde'), 2);
-    assert.equal(estimateTokens(''), 0);
+// Regression: `runner.ts` counted every list entry while `agent-eval.ts` counted
+// distinct symbols, so a plan listing the same atom twice scored differently
+// depending on which harness produced it.
+describe('symbol counting is deduplicated', () => {
+  it('counts a repeated symbol once', () => {
+    const p = plan({ objects: ['Tk', 'Tk', 'Tk'] });
+    assert.equal(distinctPlanSymbols(p).length, 1);
+  });
+
+  it('still counts symbols that appear in different families', () => {
+    const p = plan({ objects: ['Tk'], actions: ['Tk'] });
+    assert.equal(distinctPlanSymbols(p).length, 1);
   });
 });
 
@@ -275,28 +291,94 @@ describe('acceptance criteria gate the result', () => {
       }
       assert.ok(scenario.groundTruthAtoms.length >= scenario.minAtomsUsed);
     });
+
+    // Regression: `minAtomsUsed` sat at 7-9 while the real minimum a plan needs
+    // to pass acceptance was 12-15, so the gate could never trip and read as a
+    // guard while being decorative. It must stay at the true minimum, and stay
+    // no higher, or it starts failing plans that pass every criterion.
+    it(`${scenario.id}: minAtomsUsed is the true minimum, not a decorative number`, () => {
+      const required = new Set(scenario.acceptanceCriteria.flatMap((c) => c.requires));
+      assert.equal(scenario.minAtomsUsed, required.size, 'a plan passing every criterion uses exactly this many atoms');
+      assert.ok(scenario.minAtomsUsed > 0);
+    });
   }
 });
 
-describe('plan token measurement', () => {
-  // `runner.ts` and `agent-eval.ts` must measure plans identically or their
-  // numbers are not comparable. They previously differed between pretty-printed
-  // and compact JSON, which inflated one side by roughly 40% on whitespace.
+// Both arms are written to the same artifact, so the summary has to keep them
+// apart: pooling them would average two different quantities and report the
+// scenario count as double what it is.
+describe('summarizeResults reports each arm separately', () => {
+  function result(arm: 'composition' | 'baseline', id: string): EvalResult {
+    return {
+      scenarioId: id,
+      arm,
+      plan: plan({ objects: ['Tk'] }),
+      atomsUsed: [{ family: 'objects', symbols: ['Tk'] }],
+      atomCount: 1,
+      familiesCovered: ['objects'],
+      withinTable: true,
+      unimplementedAtoms: [],
+      misfiledNames: [],
+      fidelity: { recall: arm === 'composition' ? 1 : 0.5, precision: 1, matched: [], missed: [], spurious: [] },
+      acceptanceChecks: [],
+      valid: true,
+    };
+  }
+
+  const summary = summarizeResults([result('composition', 'a'), result('baseline', 'a')]);
+
+  it('labels each arm with its own scenario count', () => {
+    assert.match(summary, /composition \(1 scenarios\)/);
+    assert.match(summary, /baseline \(1 scenarios\)/);
+  });
+
+  it('does not average the two arms together', () => {
+    const block = (arm: string): string => summary.split(`${arm} (1 scenarios)\n`)[1]?.split('\n\n')[0] ?? '';
+    assert.match(block('composition'), /Mean ground-truth recall: 100\.0%/);
+    assert.match(block('baseline'), /Mean ground-truth recall: 50\.0%/);
+    assert.doesNotMatch(summary, /Mean ground-truth recall: 75\.0%/);
+  });
+
+  it('records why an arm produced nothing rather than dropping the scenario', () => {
+    const failed = { ...result('composition', 'b'), error: 'boom', valid: false };
+    const text = summarizeResults([failed]);
+    assert.match(text, /b \[composition\]/);
+    assert.match(text, /ERROR: boom/);
+    assert.match(text, /Errored: 1\/1/);
+  });
+});
+
+describe('planJson', () => {
+  // One canonical serialization, so any future metric reads the same bytes from
+  // either harness. They previously differed between pretty-printed and compact
+  // JSON, which inflated one side by roughly 40% on whitespace alone.
   it('serializes plans compactly', () => {
     const p = plan({ objects: ['Tk'] });
     assert.equal(planJson(p), JSON.stringify(p));
     assert.ok(!planJson(p).includes('\n'), 'no pretty-printing newlines');
     assert.ok(!planJson(p).includes('  '), 'no indentation padding');
   });
+});
 
-  it('ignores presentation when measuring a plan', () => {
-    const p = plan({ objects: ['Tk'], actions: ['Cr'] });
-    assert.equal(planTokens(p), estimateTokens(JSON.stringify(p)));
-    assert.notEqual(planTokens(p), estimateTokens(JSON.stringify(p, null, 2)));
-  });
+// The token metric was withdrawn: `chars/4` measured against a real tokenizer
+// came out -21% on symbol plans and +9% on name-expanded plans, so the apparent
+// notation saving was an artifact of the estimator. These assertions exist to
+// stop it creeping back in as a renamed character count.
+describe('no token metric', () => {
+  const metrics = metricsModule() as Record<string, unknown>;
 
-  it('is stable for a plan with an empty family', () => {
-    const p = plan({ objects: ['Tk'] });
-    assert.equal(planTokens(p), estimateTokens(planJson(p)));
+  for (const banned of ['estimateTokens', 'planTokens', 'nameNormalizedJson']) {
+    it(`does not export ${banned}`, () => {
+      assert.equal(banned in metrics, false, `${banned} must not come back`);
+    });
+  }
+
+  it('exports no metric whose name suggests counting tokens or characters', () => {
+    const suspicious = Object.keys(metrics).filter((k) => /token|char|length|size/i.test(k));
+    assert.deepEqual(suspicious, []);
   });
 });
+
+function metricsModule(): unknown {
+  return metricsNamespace;
+}

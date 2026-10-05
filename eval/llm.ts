@@ -2,10 +2,10 @@
  * LLM providers for the evaluation harness.
  *
  * Both arms are asked for the same two things — a component breakdown and the
- * code that realises it — so that token counts, fidelity and acceptance are
- * measured over comparable artefacts. The arms differ only in what they are
- * told: the composition arm receives the ontology and the composition prompt,
- * the baseline arm is given a plain software-engineering instruction.
+ * code that realises it — so that fidelity and acceptance are measured over
+ * comparable artefacts. The arms differ only in what they are told: the
+ * composition arm receives the ontology and the composition prompt, the baseline
+ * arm is given a plain software-engineering instruction.
  */
 
 import type { CompositionPlan } from './metrics.js';

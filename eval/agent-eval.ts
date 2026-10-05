@@ -12,27 +12,26 @@
  *   npx tsx eval/agent-eval.ts compare       # score both saved result files
  *
  * Each agent is asked for the same two artefacts — a component breakdown and the
- * code that realises it — so fidelity, acceptance and token counts are measured
- * over comparable things. The arms differ only in what they are told.
+ * code that realises it — so fidelity and acceptance are measured over comparable
+ * things. The arms differ only in what they are told.
+ *
+ * No token or character metric is reported; see docs/EVAL_RESULTS.md.
  */
 
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { COMPOSITION_SYSTEM_PROMPT, formatTableSummary } from '../composer/prompt.js';
 import { findAtoms } from '../scripts/coverage.js';
-import { buildNameIndex, loadOntology, type NameIndex, REPO_ROOT, symbolToName } from '../src/ontology.js';
+import { buildNameIndex, loadOntology, type NameIndex, REPO_ROOT } from '../src/ontology.js';
 import {
   type CompositionPlan,
   checkWithinTable,
   distinctPlanSymbols,
-  estimateTokens,
   findUnimplementedAtoms,
-  nameNormalizedJson,
   normalizePlanNames,
   planFamilies,
   planOverlap,
   planSymbols,
-  planTokens,
   scoreFidelity,
 } from './metrics.js';
 import { SCENARIOS } from './scenarios.js';
@@ -108,8 +107,6 @@ interface ArmScore {
   scenarioId: string;
   atomCount: number;
   families: string[];
-  tokens: number;
-  nameNormalizedTokens: number;
   withinTable: boolean;
   violations: string[];
   unimplemented: string[];
@@ -124,7 +121,6 @@ interface ArmScore {
 function scoreArm(
   results: ScenarioResult[],
   nameIndex: NameIndex,
-  symbolNames: Map<string, string>,
   knownSymbols: Set<string>,
   implemented: Set<string>,
   normalize: boolean,
@@ -132,6 +128,9 @@ function scoreArm(
   const scored = new Map<string, ArmScore>();
 
   for (const raw of results) {
+    if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) {
+      throw new Error(`Scenario entry is not an object: ${JSON.stringify(raw)?.slice(0, 120)}`);
+    }
     const source: CompositionPlan = {
       objects: raw.objects ?? [],
       properties: raw.properties ?? [],
@@ -159,8 +158,6 @@ function scoreArm(
       scenarioId: raw.id,
       atomCount: distinctPlanSymbols(plan).length,
       families: planFamilies(plan),
-      tokens: planTokens(plan) + estimateTokens(code),
-      nameNormalizedTokens: estimateTokens(nameNormalizedJson(plan, symbolNames)) + estimateTokens(code),
       withinTable,
       violations,
       unimplemented: findUnimplementedAtoms(plan, implemented),
@@ -192,14 +189,13 @@ function compareResults(): void {
   const ontology = loadOntology();
   const knownSymbols = new Set(ontology.elements.map((e) => e.symbol));
   const implemented = new Set(findAtoms(path.join(REPO_ROOT, 'atoms')).keys());
-  const symbolNames = symbolToName(ontology);
   const nameIndex = buildNameIndex(ontology);
 
   const baselineRaw = JSON.parse(fs.readFileSync(BASELINE_OUT, 'utf-8')) as BatchResults;
   const compositionRaw = JSON.parse(fs.readFileSync(COMPOSITION_OUT, 'utf-8')) as BatchResults;
 
-  const baseline = scoreArm(baselineRaw.results, nameIndex, symbolNames, knownSymbols, implemented, true);
-  const composition = scoreArm(compositionRaw.results, nameIndex, symbolNames, knownSymbols, implemented, false);
+  const baseline = scoreArm(baselineRaw.results, nameIndex, knownSymbols, implemented, true);
+  const composition = scoreArm(compositionRaw.results, nameIndex, knownSymbols, implemented, false);
 
   const rows: {
     scenarioId: string;
@@ -226,8 +222,7 @@ function compareResults(): void {
     const line = (label: string, arm: ArmScore) =>
       `  │  ${label.padEnd(12)} atoms ${String(arm.atomCount).padStart(2)} │ recall ${(arm.recall * 100)
         .toFixed(0)
-        .padStart(3)}% │ accept ${String(arm.acceptancePassed).padStart(2)}/${arm.acceptanceTotal} │ ` +
-      `${String(arm.tokens).padStart(5)} tok (${String(arm.nameNormalizedTokens).padStart(5)} name-norm)`;
+        .padStart(3)}% │ accept ${String(arm.acceptancePassed).padStart(2)}/${arm.acceptanceTotal}`;
 
     console.log(`  ┌─ ${scenario.id}`);
     console.log(`  │`);
@@ -248,12 +243,6 @@ function compareResults(): void {
 
   const sum = (pick: (row: (typeof rows)[number]) => number) => rows.reduce((s, r) => s + pick(r), 0);
   const mean = (pick: (row: (typeof rows)[number]) => number) => sum(pick) / rows.length;
-  const rate = (num: number, den: number) => (den === 0 ? 'n/a' : `${((1 - num / den) * 100).toFixed(1)}%`);
-
-  const tokC = sum((r) => r.composition.tokens);
-  const tokB = sum((r) => r.baseline.tokens);
-  const normC = sum((r) => r.composition.nameNormalizedTokens);
-  const normB = sum((r) => r.baseline.nameNormalizedTokens);
 
   console.log('='.repeat(78));
   console.log('  SUMMARY');
@@ -268,14 +257,9 @@ function compareResults(): void {
     `  Scenarios fully in table:    ${rows.filter((r) => r.composition.withinTable).length}/${rows.length} composition, ${rows.filter((r) => r.baseline.withinTable).length}/${rows.length} baseline`,
   );
   console.log(`  Mean plan overlap:           ${(mean((r) => r.overlap) * 100).toFixed(0)}%`);
-  console.log(`  Total tokens, raw:           ${tokC} composition vs ${tokB} baseline (${rate(tokC, tokB)} lower)`);
-  console.log(
-    `  Total tokens, name-norm:      ${normC} composition vs ${normB} baseline (${rate(normC, normB)} lower)`,
-  );
   console.log('='.repeat(78));
-  console.log('  Raw token counts reward 2-char symbols over descriptive names by');
-  console.log('  construction. The name-normalized row is the fairer comparison.');
-  console.log('  `within table` is not a baseline win: the baseline never saw the table.\n');
+  console.log('  `within table` is not a baseline win: the baseline never saw the table.');
+  console.log('  No token or character metric is reported; see docs/EVAL_RESULTS.md.\n');
 
   const outPath = path.resolve(REPO_ROOT, 'agent-eval-results.json');
   fs.writeFileSync(
@@ -286,10 +270,10 @@ function compareResults(): void {
           scenarios: rows.length,
           meanCompositionRecall: mean((r) => r.composition.recall),
           meanBaselineRecall: mean((r) => r.baseline.recall),
-          totalCompositionTokens: tokC,
-          totalBaselineTokens: tokB,
-          totalCompositionTokensNameNormalized: normC,
-          totalBaselineTokensNameNormalized: normB,
+          meanCompositionAcceptance: mean(
+            (r) => r.composition.acceptancePassed / Math.max(1, r.composition.acceptanceTotal),
+          ),
+          meanBaselineAcceptance: mean((r) => r.baseline.acceptancePassed / Math.max(1, r.baseline.acceptanceTotal)),
           meanOverlap: mean((r) => r.overlap),
         },
         comparisons: rows,

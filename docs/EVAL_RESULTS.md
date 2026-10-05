@@ -1,9 +1,10 @@
 # Evaluation: Does the Periodic Table Actually Help?
 
-**Status: the previously published "39% token savings" figure is withdrawn.** The
-reason is a defect in the measurement, not in the idea. This document explains
-what was wrong, what the harness measures now, and what a real result would have
-to look like.
+**Status: the previously published "39% token savings" figure is withdrawn, and
+the harness no longer reports any token or character metric at all.** The reason
+is a defect in the measurement, not in the idea. This document explains what was
+wrong, what the harness measures now, and what a real result would have to look
+like.
 
 ## What the old number was, and why it does not hold
 
@@ -44,6 +45,34 @@ Three other observations from that same data contradicted the way it was framed:
 The 39% figure was never a measurement of composition being cheaper than
 generation. It is withdrawn rather than restated.
 
+### The name-normalized "fix" was also wrong
+
+The first correction to this document did not remove the token metric; it added a
+second one. Both arms' plans were expanded to full atom names and re-counted, on
+the theory that this cancelled the abbreviation advantage. That is still a
+character count, and character counts do not estimate tokens.
+
+Checked against a real tokenizer (`gpt-tokenizer`, `cl100k_base`) on this
+repository's own mock plans:
+
+| Plan form | `ceil(len/4)` | Real tokens | Error |
+|---|---|---|---|
+| Symbol plans | 231 | 292 | **−20.9%** |
+| Name-expanded plans | 314 | 289 | **+8.7%** |
+
+The estimator is not uniformly biased — it is low on one arm and high on the other,
+so the error cannot be corrected by a constant factor. The consequence:
+
+> `chars/4` reports that symbol notation costs **1.36×** less than names. A real
+> tokenizer reports **0.99×**. The notation advantage is, to within measurement
+> noise, **zero**.
+
+So the apparent saving was an artifact of the estimator, not a small real effect
+hidden behind a confound. The metric has been removed rather than recalibrated:
+a ratio of two quantities with opposite-signed ~10–20% errors cannot support a
+savings claim at any confidence level, and no correction constant fixes that
+without becoming a claim in its own right.
+
 There is a second, smaller problem, now fixed: `planOverlap` iterated every key
 of the plan object, which includes the free-text `notes` field. Spreading a
 sentence into a set produced a set of its individual characters, and those were
@@ -78,14 +107,36 @@ scored 4/4 on the task board. Under the current check that same plan scores 0/7.
 the table, so it cannot stay inside it. Scoring that as a baseline failure would
 be comparing the two arms on a rule only one was asked to follow.
 
-### Tokens, with the confound removed
+### No token metric
 
-Token counts are still reported, and are now reported twice. Every plan is
-additionally serialized with all symbols expanded to full atom names
-(`nameNormalizedJson`), so both arms are measured in the same notation. The
-raw figure is an upper bound on any real advantage; the name-normalized figure is
-the one worth reading. If composition only looks cheaper in the raw column, the
-advantage is the abbreviation.
+There is no token or character count in the harness, and `test/metrics.test.ts`
+asserts that no such export can reappear under another name. Plan length is not a
+proxy for cost: an atom symbol is short, but a model that writes more atoms does
+not thereby spend more to write them.
+
+If a cost comparison is ever wanted, it needs a real tokenizer on both arms plus
+a decision about whether comparing notation is even the right question. That is
+future work, and it is not something to be estimated.
+
+### Acceptance is not independent evidence
+
+`union(acceptanceCriteria.requires)` equals `groundTruthAtoms` exactly in all six
+scenarios, and `test/metrics.test.ts` asserts it. Acceptance is therefore a
+per-criterion restatement of ground-truth recall, not a second independent signal.
+It is still worth reporting — it says *which* requirement a plan missed rather than
+just a ratio — but quoting recall and acceptance as two corroborating results would
+be double-counting one measurement.
+
+### Known bias in the ground truth
+
+Some criteria require atoms the feature request never names: `crm-contacts`
+requires Detail, Status, Delete and Update; `product-catalog` requires Gallery when
+the request says Grid; `notification-rules` requires both `Tr` and `Ti`, which is
+one idea ("Trigger") in two families. A baseline cannot earn credit for a
+requirement it was never given, so ground-truth recall currently favours the
+composition arm for reasons unrelated to whether the ontology helps. The
+ground truth needs reworking against the request text before any live number is
+published. This is stated plainly here rather than left for a reader to discover.
 
 ### What is still missing
 
@@ -130,8 +181,20 @@ Override the input and output paths with `SPT_BASELINE_OUT` and
 ## What a result would need to show
 
 For the thesis to be supported, a real run should show composition plans scoring
-**higher ground-truth recall** than baseline plans that were reverse-engineered
-into the same vocabulary, and passing **more acceptance criteria** — with the
-advantage surviving the name-normalized token comparison. Higher recall alone
-would be the result worth having: it would mean the table helps an agent find the
-right components, independently of how any of it is written.
+**higher ground-truth recall** than baselines scored on equal terms. Higher recall
+is the result worth having: it would mean the table helps an agent find the right
+components, independently of how any of it is written.
+
+Two preconditions stand between the current harness and a publishable number:
+
+1. **The baseline prompt must not leak the ontology's structure.** It currently
+   tells the model to "break the design into entities, fields, operations, views,
+   AI features and governance rules", which is the six-family taxonomy verbatim.
+   An arm described as having "no knowledge of the Periodic Table" is being handed
+   its skeleton. Either the taxonomy comes out of that prompt, or the arm is
+   described accurately for what it is.
+2. **The ground truth must be derived from the feature request**, not from what the
+   table happens to contain — see the bias note above.
+
+Neither is a harness bug. Both are experimental-design problems, and both would
+have to be settled before a live run meant anything.

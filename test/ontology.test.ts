@@ -214,21 +214,32 @@ describe('reference implementation coverage', () => {
     }
   });
 
-  it('reports 94 of 115 atoms implemented', () => {
+  it('implements every atom in the table', () => {
     // Pinned deliberately. Adding or removing an atom should break this test on
     // purpose: the same numbers are quoted in README.md (Status, Limitations,
     // Roadmap), so failing here is the reminder to update the documentation.
-    assert.equal(report.covered, 94);
+    //
+    // The table claims to be composable end to end, so a symbol with no
+    // reference implementation is a gap in that claim, not a roadmap item.
+    assert.equal(report.covered, report.total);
     assert.equal(report.total, 115);
-    assert.equal(report.percent, 82);
+    assert.equal(report.percent, 100);
   });
 
-  it('covers every family it claims to cover completely', () => {
+  it('leaves no atom in any family without an implementation', () => {
     for (const family of report.families) {
-      if (['objects', 'properties', 'intelligence'].includes(family.family)) {
-        assert.equal(family.percent, 100, family.family);
-      }
+      assert.equal(
+        family.percent,
+        100,
+        `${family.family} is missing ${family.missing.map((m) => m.symbol).join(', ')}`,
+      );
+      assert.deepEqual(family.missing, [], family.family);
     }
+  });
+
+  it('agrees that every implemented name matches the ontology', () => {
+    assert.deepEqual(report.mismatchedNames, []);
+    assert.equal(report.ontologyValid, true);
   });
 
   it('detects an atom implemented for a symbol outside the ontology', () => {

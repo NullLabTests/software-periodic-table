@@ -18,10 +18,13 @@ This repository formalizes that observation into a concrete artifact:
 4. An **evaluation harness** for measuring composition fidelity and correctness against a baseline.
 
 > **On empirical claims:** this project makes no measured claim that composition
-> beats generation. An earlier version reported a 39% token saving; that figure
-> was withdrawn once it became clear the metric mostly measured the length of an
-> abbreviation. The evaluation methodology is the contribution here, and running
-> it is the next step. See [`docs/EVAL_RESULTS.md`](docs/EVAL_RESULTS.md).
+> beats generation. An earlier version reported a 39% token saving; that figure is
+> withdrawn, and the harness no longer reports any token metric. Checked against a
+> real tokenizer, the `characters / 4` estimate it relied on was −21% on symbol
+> plans and +9% on name-expanded plans, so the apparent notation saving was an
+> artifact of the estimator. The evaluation methodology is the contribution here,
+> and running it is the next step. See
+> [`docs/EVAL_RESULTS.md`](docs/EVAL_RESULTS.md).
 
 ## Contributions
 
@@ -85,7 +88,7 @@ software-periodic-table/
 │   ├── runner.ts                   # Entry point: baseline vs composition
 │   ├── llm.ts                      # LLMProvider interface + OpenAI implementation
 │   ├── scenarios.ts                # Feature requests, ground truth, acceptance criteria
-│   ├── metrics.ts                  # Fidelity, acceptance and token scoring
+│   ├── metrics.ts                  # Fidelity, acceptance and plan diagnostics
 │   ├── agent-eval.ts               # Sub-agent variant of the same comparison
 │   └── README.md                   # How to run & interpret eval
 ├── test/                           # node:test suite — ontology, schema, metrics, atoms
@@ -183,33 +186,49 @@ See `docs/AGENT_USAGE.md` for a detailed walkthrough of both patterns, including
 2. **Composable by construction.** Every atom declares clear interfaces, inputs, and side-effect boundaries.
 3. **Implementation-agnostic at the ontology level.** The table describes *what*, not *how*. Reference TypeScript implementations exist; ports are welcome.
 4. **Agent-first.** Retrieval, typing, and prompting are first-class concerns. The library is designed to be consumed by code rather than humans.
-5. **Measurable.** Token usage, composition fidelity, and correctness are first-class evaluation criteria. The `eval/` harness captures all three.
+5. **Measurable.** Composition fidelity and correctness are first-class evaluation criteria, scored against a per-scenario ground truth. The `eval/` harness measures both.
 
 ## Status
 
-The ontology (115 elements) is stable. Reference implementations exist for 94 atoms (82%) across all six families: 100% of Objects, Properties, and Intelligence, 86% of Rules, 48% of Actions, and 53% of Interfaces (run `npm run coverage` for the live report). Every atom used by the evaluation scenarios is implemented. The composition system prompt, examples, and evaluation harness are functional and unit-tested.
+The ontology (115 elements) is stable. **Every element has a tested reference
+implementation — 115 of 115 (100%)**, across all six families (run `npm run
+coverage` for the live report). `test/ontology.test.ts` fails if any atom loses its
+implementation, because a symbol with no implementation is a hole in the claim that
+the table is composable end to end. The composition system prompt, examples, and
+evaluation harness are functional and unit-tested.
 
 **No empirical claim is made yet.** An earlier version of this README reported a
-39% token saving from composition. That figure has been withdrawn: the metric
-compared plans written in 2-character symbols against plans written in full
-descriptive names, so most of the measured saving was the cost of the
-abbreviation rather than the cost of the approach. The harness has been corrected
-and now scores ground-truth recall and acceptance criteria as its primary
-metrics, but no corrected LLM run has been published. See
-[`docs/EVAL_RESULTS.md`](docs/EVAL_RESULTS.md).
+39% token saving from composition. That figure is withdrawn and the metric is
+gone. It compared plans written in 2-character symbols against plans written in
+full descriptive names, so most of the measured saving was the cost of the
+abbreviation; a real tokenizer then showed the notation advantage to be
+approximately zero (0.99×, where the character estimate claimed 1.36×). The harness
+scores ground-truth recall and acceptance criteria, and no LLM run has been
+published. See [`docs/EVAL_RESULTS.md`](docs/EVAL_RESULTS.md).
 
-Remaining work: expand reference coverage to all 115 elements, run and publish a
-corrected LLM evaluation, and collect empirical results.
+Two experimental-design problems are documented and unsolved: the baseline prompt
+leaks the ontology's six-family taxonomy, and some ground truth requires atoms the
+feature request never mentions. Both would need settling before a live run meant
+anything.
+
+Remaining work: run and publish a corrected LLM evaluation, rework the ground truth
+against the feature requests, and collect empirical results.
 
 ## Limitations
 
-- Reference implementations cover 94 of 115 elements. The remainder have precise
-  descriptions in the ontology but no TypeScript implementation.
+- The reference implementations are contract-level: they define a typed shape and
+  a pure materialization function, not a wired-up runtime. Adopting an atom means
+  executing it.
 - The evaluation harness is reproducible but has not been run against a live
   model, so it demonstrates the methodology rather than a result.
-- Token counts in the harness are a `characters / 4` estimate, not a tokenizer.
-  Because notation length dominates that measure, plans are also compared with
-  symbols expanded to full names.
+- No cost or token metric is reported. The `characters / 4` estimate it replaced
+  was −21% on symbol plans and +9% on name-expanded plans when checked against a
+  real tokenizer, so it could not be corrected by a constant factor and was
+  removed instead of recalibrated.
+- The evaluation ground truth is not yet defensible: some criteria require atoms
+  the feature request never names, and `notification-rules` requires "Trigger" in
+  two families at once. Baseline recall is currently understated for reasons
+  unrelated to the ontology.
 - Domain-specific concepts (insurance claims, retail SKUs, etc.) are intentionally
   excluded from the core table. They belong in optional domain packs.
 - Five names each identify elements in two families (`Email`, `Message`,

@@ -25,6 +25,8 @@ export interface CompositionPlan {
 
 export interface EvalResult {
   scenarioId: string;
+  /** Which arm produced this plan. Both arms are recorded so a run is self-describing. */
+  arm: 'composition' | 'baseline';
   plan: CompositionPlan;
   atomsUsed: { family: Family; symbols: string[] }[];
   atomCount: number;
@@ -32,18 +34,10 @@ export interface EvalResult {
   withinTable: boolean;
   /** Symbols referenced by the plan that have no reference implementation in atoms/. */
   unimplementedAtoms: string[];
-  tokenEstimate: {
-    planTokens: number;
-    implementationTokens: number;
-    totalTokens: number;
-    /**
-     * Total tokens after both plans are expanded to full atom names. Symbols are
-     * two characters and names are typically ten to twenty, so a raw character
-     * count structurally favours whichever side emits symbols. This figure
-     * removes that naming confound; see docs/EVAL_RESULTS.md.
-     */
-    nameNormalizedTotalTokens: number;
-  };
+  /** Plan entries naming a real atom that sits in the wrong family bucket. */
+  misfiledNames: { family: Family; name: string; expectedSymbol: string; actualFamily: Family }[];
+  /** Set when the arm failed to produce a scoreable plan, so N never shrinks silently. */
+  error?: string;
   /** How closely the produced plan matches the scenario's ground-truth atom set. */
   fidelity: FidelityScore;
   acceptanceChecks: { criterion: string; passed: boolean; missing: string[] }[];
@@ -69,29 +63,20 @@ export const EMPTY_FIDELITY: FidelityScore = {
 };
 
 /**
- * Estimate the number of tokens in a text.
- * Rough heuristic: ~4 characters per token for English/JSON.
- */
-export function estimateTokens(text: string): number {
-  return Math.ceil(text.length / 4);
-}
-
-/**
- * Canonical serialization of a plan for token measurement.
+ * Canonical serialization of a plan.
  *
- * Both harnesses must measure plans the same way or their numbers cannot be
+ * Both harnesses must serialize plans the same way or their numbers cannot be
  * compared: `runner.ts` and `agent-eval.ts` previously differed between
  * pretty-printed and compact JSON, which inflated one side by roughly 40% on
  * whitespace alone. Compact is used because it is the form a model actually
  * emits, and because indentation is a presentation artifact rather than content.
+ *
+ * This exists for stable comparison and for human-readable diagnostics. It is
+ * deliberately not used to report a token count; see the note on token metrics
+ * in docs/EVAL_RESULTS.md for why character counts cannot support that claim.
  */
 export function planJson(plan: CompositionPlan): string {
   return JSON.stringify(plan);
-}
-
-/** Token estimate for a plan, using the canonical serialization. */
-export function planTokens(plan: CompositionPlan): number {
-  return estimateTokens(planJson(plan));
 }
 
 /** Every symbol referenced by a plan, in canonical family order. */
@@ -169,20 +154,39 @@ export function scoreFidelity(plan: CompositionPlan, groundTruth: Iterable<strin
 }
 
 /**
- * Re-serialize a plan with every symbol expanded to its full atom name.
+ * Plan entries that name a real atom but sit in the wrong family bucket.
  *
- * Comparing two plans by raw character count is unfair when one side is
- * required to emit two-character symbols and the other full names: the symbol
- * side wins on length before either plan is assessed. Expanding both sides to
- * names makes the token comparison measure the plans rather than the notation.
+ * These are distinct from out-of-table violations: the name exists, it is just
+ * filed under a family whose atoms it cannot satisfy. Scoring treats them as
+ * misses (which is the honest reading) but reporting them separately tells a
+ * model author "move this component", not "invent a symbol".
  */
-export function nameNormalizedJson(plan: CompositionPlan, symbolToName: Map<string, string>): string {
-  const expanded: Record<string, string[] | string> = {};
-  for (const family of PLAN_FAMILIES) {
-    expanded[family] = (plan[family] ?? []).map((symbol) => symbolToName.get(symbol) ?? symbol);
+export function findMisfiledNames(
+  plan: CompositionPlan,
+  nameIndex: NameIndex,
+): { family: Family; name: string; expectedSymbol: string; actualFamily: Family }[] {
+  const familyOfSymbol = new Map<string, Family>();
+  for (const [family, names] of nameIndex.byFamily) {
+    for (const symbol of new Set(names.values())) {
+      if (!familyOfSymbol.has(symbol)) familyOfSymbol.set(symbol, family as Family);
+    }
   }
-  if (plan.notes !== undefined) expanded.notes = plan.notes;
-  return JSON.stringify(expanded);
+
+  const misfiled: { family: Family; name: string; expectedSymbol: string; actualFamily: Family }[] = [];
+  for (const family of PLAN_FAMILIES) {
+    const familyNames = nameIndex.byFamily.get(family);
+    for (const item of plan[family] ?? []) {
+      const key = item.toLowerCase();
+      if (familyNames?.has(key)) continue;
+      const symbol = nameIndex.any.get(key);
+      if (!symbol) continue;
+      const actualFamily = familyOfSymbol.get(symbol);
+      if (actualFamily && actualFamily !== family) {
+        misfiled.push({ family, name: item, expectedSymbol: symbol, actualFamily });
+      }
+    }
+  }
+  return misfiled;
 }
 
 /**
@@ -203,6 +207,14 @@ export function findUnimplementedAtoms(plan: CompositionPlan, implemented: Set<s
  * component into the wrong family before anything is scored against it. The
  * family buckets in a plan carry that information, so use them.
  *
+ * There is deliberately no fallback to `nameIndex.any`. An earlier version had
+ * one, and it quietly reintroduced the exact family-blindness this function
+ * exists to prevent: `objects: ['Search']` resolved to `Sr` (intelligence) and
+ * `actions`/`interfaces: ['Create']` resolved to `Cr` (actions), so components
+ * were rehomed before scoring. A name that belongs in another family is a real
+ * atom in the wrong bucket, and the harness reports that as a misfiled name
+ * rather than silently moving it. Use `findMisfiledNames` to surface those.
+ *
  * Names with no match are returned unchanged, which is what makes an
  * out-of-table name show up as a violation instead of being quietly dropped.
  */
@@ -219,7 +231,7 @@ export function normalizePlanNames(plan: CompositionPlan, nameIndex: NameIndex):
     const familyNames = nameIndex.byFamily.get(family);
     normalized[family] = (plan[family] ?? []).map((item) => {
       const key = item.toLowerCase();
-      return familyNames?.get(key) ?? nameIndex.any.get(key) ?? item;
+      return familyNames?.get(key) ?? item;
     });
   }
   if (plan.notes !== undefined) normalized.notes = plan.notes;
@@ -228,30 +240,48 @@ export function normalizePlanNames(plan: CompositionPlan, nameIndex: NameIndex):
 
 /**
  * Generate a human-readable summary of evaluation results.
+ *
+ * Both arms are reported separately. Pooling them would average a number that
+ * means different things for each arm, and would make the scenario count read as
+ * double what it is.
  */
 export function summarizeResults(results: EvalResult[]): string {
-  const total = results.length;
-  const valid = results.filter((r) => r.valid).length;
-  const withinTable = results.filter((r) => r.withinTable).length;
-  const recall = results.length === 0 ? 0 : results.reduce((s, r) => s + r.fidelity.recall, 0) / results.length;
-  const totalTokens = results.reduce((s, r) => s + r.tokenEstimate.totalTokens, 0);
-  const totalNormalized = results.reduce((s, r) => s + r.tokenEstimate.nameNormalizedTotalTokens, 0);
-
+  const arms: EvalResult['arm'][] = ['composition', 'baseline'];
   let summary = `=== Evaluation Summary ===\n\n`;
-  summary += `Scenarios: ${total}\n`;
-  summary += `Valid (all checks passed): ${valid}/${total}\n`;
-  summary += `Within table: ${withinTable}/${total}\n`;
-  summary += `Mean ground-truth recall: ${(recall * 100).toFixed(1)}%\n`;
-  summary += `Total estimated tokens (raw notation): ${totalTokens}\n`;
-  summary += `Total estimated tokens (name-normalized): ${totalNormalized}\n\n`;
+
+  for (const arm of arms) {
+    const scoped = results.filter((r) => r.arm === arm);
+    if (scoped.length === 0) continue;
+
+    const valid = scoped.filter((r) => r.valid).length;
+    const withinTable = scoped.filter((r) => r.withinTable).length;
+    const recall = scoped.reduce((s, r) => s + r.fidelity.recall, 0) / scoped.length;
+    const misfiled = scoped.filter((r) => r.misfiledNames.length > 0).length;
+    const errored = scoped.filter((r) => r.error !== undefined).length;
+
+    summary += `${arm} (${scoped.length} scenarios)\n`;
+    summary += `  Valid (all checks passed): ${valid}/${scoped.length}\n`;
+    summary += `  Within table: ${withinTable}/${scoped.length}\n`;
+    summary += `  Mean ground-truth recall: ${(recall * 100).toFixed(1)}%\n`;
+    summary += `  Misfiled names: ${misfiled}/${scoped.length}\n`;
+    if (errored > 0) summary += `  Errored: ${errored}/${scoped.length}\n`;
+    summary += `\n`;
+  }
 
   summary += `Per-Scenario Results:\n`;
   for (const r of results) {
-    summary += `  ${r.scenarioId}:\n`;
+    summary += `  ${r.scenarioId} [${r.arm}]:\n`;
+    if (r.error !== undefined) {
+      summary += `    ERROR: ${r.error}\n\n`;
+      continue;
+    }
     summary += `    Atoms used: ${r.atomCount} (families: ${r.familiesCovered.join(', ')})\n`;
     summary += `    Within table: ${r.withinTable}\n`;
     if (r.unimplementedAtoms.length > 0) {
       summary += `    Unimplemented atoms: ${r.unimplementedAtoms.join(', ')}\n`;
+    }
+    if (r.misfiledNames.length > 0) {
+      summary += `    Misfiled names: ${r.misfiledNames.map((m) => `${m.name} in ${m.family} -> ${m.expectedSymbol} (${m.actualFamily})`).join('; ')}\n`;
     }
     summary += `    Fidelity: recall ${(r.fidelity.recall * 100).toFixed(0)}%, precision ${(r.fidelity.precision * 100).toFixed(0)}%\n`;
     if (r.fidelity.missed.length > 0) {
@@ -260,7 +290,6 @@ export function summarizeResults(results: EvalResult[]): string {
     if (r.fidelity.spurious.length > 0) {
       summary += `    Spurious: ${r.fidelity.spurious.join(', ')}\n`;
     }
-    summary += `    Token estimate: ${r.tokenEstimate.totalTokens} (plan: ${r.tokenEstimate.planTokens}, impl: ${r.tokenEstimate.implementationTokens}, name-normalized: ${r.tokenEstimate.nameNormalizedTotalTokens})\n`;
     summary += `    Acceptance: ${r.acceptanceChecks.filter((c) => c.passed).length}/${r.acceptanceChecks.length} passed\n`;
     for (const c of r.acceptanceChecks.filter((x) => !x.passed)) {
       summary += `      FAIL: ${c.criterion} (missing: ${c.missing.join(', ') || 'no known atom'})\n`;

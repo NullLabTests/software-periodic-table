@@ -24,6 +24,16 @@ export interface EvalScenario {
   }[];
   /** Ground-truth atom set. Fidelity is scored against this. */
   groundTruthAtoms: string[];
+  /**
+   * Floor on distinct atoms before acceptance is even evaluated.
+   *
+   * This is derived from `acceptanceCriteria`, not an independent expectation:
+   * passing every criterion already implies using this many atoms. It exists as
+   * a cheap short-circuit, so it is set to the true minimum a plan needs. An
+   * earlier version used much lower values (7-9 against real minima of 12-15),
+   * which made the gate unreachable to trip and therefore decorative;
+   * `test/metrics.test.ts` asserts it stays tight.
+   */
   minAtomsUsed: number;
   acceptanceCriteria: AcceptanceCriterion[];
 }
@@ -42,7 +52,7 @@ export const SCENARIOS: EvalScenario[] = [
       { family: 'rules', symbols: ['Pn'], description: 'Permission rules' },
     ],
     groundTruthAtoms: ['Tk', 'Us', 'Ss', 'Py', 'Ow', 'Cr', 'Up', 'Vw', 'As', 'Kb', 'Tb', 'Pn'],
-    minAtomsUsed: 8,
+    minAtomsUsed: 12,
     acceptanceCriteria: [
       { text: 'Tasks and users are modeled as entities', requires: ['Tk', 'Us'] },
       { text: 'Tasks can be created with priority and an assignee', requires: ['Cr', 'Py', 'Ow'] },
@@ -69,7 +79,7 @@ export const SCENARIOS: EvalScenario[] = [
       { family: 'interfaces', symbols: ['Tb', 'Di'], description: 'Table + Detail views' },
     ],
     groundTruthAtoms: ['Co', 'Ct', 'Ay', 'Ss', 'Dt', 'Cr', 'Up', 'De', 'Vw', 'Se', 'Fi', 'So', 'Ex', 'Tb', 'Di'],
-    minAtomsUsed: 8,
+    minAtomsUsed: 15,
     acceptanceCriteria: [
       { text: 'Companies and contacts are modeled and linked', requires: ['Co', 'Ct'] },
       { text: 'Activities are logged against contacts', requires: ['Ay', 'Cr'] },
@@ -103,7 +113,7 @@ export const SCENARIOS: EvalScenario[] = [
       { family: 'rules', symbols: ['Pn'], description: 'Permission rules' },
     ],
     groundTruthAtoms: ['In', 'Ss', 'Cu', 'Dt', 'Sd', 'Ed', 'Nm', 'Cr', 'Up', 'Fi', 'So', 'Ex', 'Tb', 'Pn'],
-    minAtomsUsed: 7,
+    minAtomsUsed: 14,
     acceptanceCriteria: [
       { text: 'Invoices are modeled as an entity', requires: ['In'] },
       { text: 'Invoices have a number and an amount in currency', requires: ['Nm', 'Cu'] },
@@ -129,7 +139,7 @@ export const SCENARIOS: EvalScenario[] = [
       { family: 'rules', symbols: ['Pn', 'Po'], description: 'Permission + Policy rules' },
     ],
     groundTruthAtoms: ['Us', 'Ro', 'Tm', 'Ss', 'Cr', 'Up', 'De', 'Vw', 'Fi', 'Tb', 'Fm', 'Pn', 'Po'],
-    minAtomsUsed: 8,
+    minAtomsUsed: 13,
     acceptanceCriteria: [
       { text: 'Users, roles and teams are modeled', requires: ['Us', 'Ro', 'Tm'] },
       { text: 'Users have a status lifecycle', requires: ['Ss'] },
@@ -153,7 +163,7 @@ export const SCENARIOS: EvalScenario[] = [
       { family: 'rules', symbols: ['Ti', 'Cv', 'At', 'Au'], description: 'Trigger, Condition, Action, Audit' },
     ],
     groundTruthAtoms: ['Wf', 'Ms', 'Em', 'Ss', 'Bl', 'Tr', 'No', 'Mg', 'Tb', 'Fd', 'Ti', 'Cv', 'At', 'Au'],
-    minAtomsUsed: 8,
+    minAtomsUsed: 14,
     acceptanceCriteria: [
       { text: 'Rules are modeled as workflows carrying messages', requires: ['Wf', 'Ms'] },
       { text: 'Email notifications are supported', requires: ['Em', 'No'] },
@@ -179,7 +189,7 @@ export const SCENARIOS: EvalScenario[] = [
       { family: 'intelligence', symbols: ['Sr', 'Rc'], description: 'Search, Recommend' },
     ],
     groundTruthAtoms: ['Pr', 'Tg', 'Cu', 'Ss', 'Tx', 'Cr', 'Up', 'Vw', 'Se', 'Fi', 'Gy', 'Tb', 'Di', 'Sr', 'Rc'],
-    minAtomsUsed: 9,
+    minAtomsUsed: 15,
     acceptanceCriteria: [
       { text: 'Products and tags are modeled', requires: ['Pr', 'Tg'] },
       { text: 'Products carry currency, status and description', requires: ['Cu', 'Ss', 'Tx'] },

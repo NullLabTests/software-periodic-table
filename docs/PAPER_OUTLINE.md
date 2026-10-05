@@ -44,7 +44,7 @@ Large language models and coding agents are increasingly used to generate applic
 - Six scenarios: task board, CRM contacts, invoice list, user/role management, notification rules, product catalog
 - Primary metrics: ground-truth recall and precision, and acceptance criteria that name the atoms satisfying them
 - Baseline vs. composition methodology: same model, same feature request, differing only in whether the table is shown; the baseline's descriptive names are resolved to symbols within their own family
-- Controlling for notation: tokens are reported both raw and with both arms expanded to full names, because a 2-character symbol is shorter than a descriptive name regardless of whether composition helped
+- Controlling for notation: no character or token count is reported at all. A `characters / 4` estimate was checked against a real tokenizer and came out −21% on symbol plans and +9% on name-expanded plans, so the apparent notation saving (1.36×) is not distinguishable from zero (0.99×)
 - **Outstanding: no live-model results yet.** A preliminary token-saving figure was withdrawn once it became clear the metric mostly measured abbreviation length
 - Plan for the real evaluation, and what a supporting result would have to show
 
@@ -58,7 +58,7 @@ Large language models and coding agents are increasingly used to generate applic
 
 ### 7. Limitations and Future Work
 
-- Reference implementations cover 94 of 115 elements; the remainder are described but not implemented
+- Reference implementations cover all 115 elements; they are contract-level shapes with pure materialization functions, not a wired runtime
 - No live-model evaluation results yet; the harness is verified but unrun against a model
 - Domain-specific elements intentionally excluded
 - Need for empirical LLM evaluation

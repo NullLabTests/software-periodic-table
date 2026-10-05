@@ -4,8 +4,8 @@ Measures whether composing from the Software Periodic Table changes what an
 agent produces, relative to unconstrained generation.
 
 **Read [`docs/EVAL_RESULTS.md`](../docs/EVAL_RESULTS.md) first.** It explains why
-the previously published token-savings figure was withdrawn, and which metrics
-are worth trusting.
+the previously published token-savings figure was withdrawn, why the replacement
+metric was wrong too, and which metrics are worth trusting.
 
 ## Quick Start
 
@@ -64,17 +64,23 @@ family was declared last.
 | `fidelity.precision` | Ground-truth atoms in the plan, over all atoms used | Yes |
 | `acceptanceChecks` | Criteria naming the atoms that satisfy them | Yes |
 | `unimplementedAtoms` | Referenced atoms with no implementation in `atoms/` | Yes |
-| `nameNormalizedTotalTokens` | Tokens with both arms expanded to full names | Yes |
-| `totalTokens` | Tokens in each arm's own notation | Upper bound only |
+| `misfiledNames` | Real atoms filed under the wrong family | Yes, diagnostic |
 | `withinTable` | Every symbol exists in the ontology | Not a comparison |
 | `planOverlap` | Symbol overlap between two plans | Yes, after the `notes` fix |
+| `error` | Why an arm produced no scoreable plan | Recorded, never dropped |
 
-### Why raw token counts are an upper bound
+### Why there is no token metric
 
-A plan written in 2-character symbols is shorter than the same plan written in
-full names, regardless of whether composition helped. Every token figure is
-therefore also reported with both sides expanded to names, which measures the plan
-rather than the notation. See `docs/EVAL_RESULTS.md`.
+An earlier version reported `totalTokens` alongside a name-normalized figure. Both
+were character counts, and a real tokenizer put the first at −21% and the second at
++9% on this repository's own plans — opposite-signed errors, so no constant factor
+corrects the ratio. The notation advantage it implied (1.36×) measures as 0.99×,
+which is to say nothing.
+
+`test/metrics.test.ts` asserts that no export whose name suggests counting tokens
+or characters can come back. If a cost comparison is ever wanted it needs a real
+tokenizer on both arms, and a decision about whether notation length is the right
+question at all.
 
 ### Why `withinTable` is not a result
 

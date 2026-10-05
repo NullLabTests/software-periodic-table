@@ -128,7 +128,7 @@ export function symbolSet(ontology: Ontology): Set<string> {
 export function symbolIndex(ontology: Ontology): Map<string, OntologyElement> {
   return new Map(ontology.elements.map((e) => [e.symbol, e]));
 }
-/** symbol -> name, used to expand symbols when comparing token counts fairly. */
+/** symbol -> name, for rendering a symbol as human-readable text. */
 export function symbolToName(ontology: Ontology): Map<string, string> {
   return new Map(ontology.elements.map((e) => [e.symbol, e.name]));
 }
