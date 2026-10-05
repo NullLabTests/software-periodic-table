@@ -1,5 +1,17 @@
 import type { Family } from '../atoms/core.js';
 
+export interface AcceptanceCriterion {
+  /** Human-readable statement of what the scenario must satisfy. */
+  text: string;
+  /**
+   * Atom symbols of which at least one must appear in the produced plan for the
+   * criterion to pass. Keeping this explicit is what makes the check meaningful:
+   * a free-text criterion matched by keyword search can be satisfied by an
+   * unrelated atom, so every criterion names the atoms that satisfy it.
+   */
+  requires: string[];
+}
+
 export interface EvalScenario {
   id: string;
   title: string;
@@ -10,9 +22,10 @@ export interface EvalScenario {
     symbols: string[];
     description: string;
   }[];
-  expectedInterfaces: string[];
+  /** Ground-truth atom set. Fidelity is scored against this. */
+  groundTruthAtoms: string[];
   minAtomsUsed: number;
-  acceptanceCriteria: string[];
+  acceptanceCriteria: AcceptanceCriterion[];
 }
 
 export const SCENARIOS: EvalScenario[] = [
@@ -28,13 +41,16 @@ export const SCENARIOS: EvalScenario[] = [
       { family: 'interfaces', symbols: ['Kb', 'Tb'], description: 'Kanban + Table views' },
       { family: 'rules', symbols: ['Pn'], description: 'Permission rules' },
     ],
-    expectedInterfaces: ['Kanban', 'Table'],
+    groundTruthAtoms: ['Tk', 'Us', 'Ss', 'Py', 'Ow', 'Cr', 'Up', 'Vw', 'As', 'Kb', 'Tb', 'Pn'],
     minAtomsUsed: 8,
     acceptanceCriteria: [
-      'Tasks can be created with title, description, priority, assignee',
-      'Tasks can be moved through statuses',
-      'Tasks display in both Kanban and Table views',
-      'Access control restricts task creation to authorized roles',
+      { text: 'Tasks and users are modeled as entities', requires: ['Tk', 'Us'] },
+      { text: 'Tasks can be created with priority and an assignee', requires: ['Cr', 'Py', 'Ow'] },
+      { text: 'Tasks can be moved through statuses', requires: ['Ss', 'Up'] },
+      { text: 'Tasks can be assigned to a user', requires: ['As'] },
+      { text: 'Tasks display in both Kanban and Table views', requires: ['Kb', 'Tb'] },
+      { text: 'Tasks can be viewed', requires: ['Vw'] },
+      { text: 'Access control restricts task creation to authorized roles', requires: ['Pn'] },
     ],
   },
   {
@@ -52,14 +68,18 @@ export const SCENARIOS: EvalScenario[] = [
       },
       { family: 'interfaces', symbols: ['Tb', 'Di'], description: 'Table + Detail views' },
     ],
-    expectedInterfaces: ['Table', 'Detail'],
+    groundTruthAtoms: ['Co', 'Ct', 'Ay', 'Ss', 'Dt', 'Cr', 'Up', 'De', 'Vw', 'Se', 'Fi', 'So', 'Ex', 'Tb', 'Di'],
     minAtomsUsed: 8,
     acceptanceCriteria: [
-      'Companies and Contacts can be created and linked',
-      'Activities can be logged against contacts',
-      'Contacts are searchable by name and company',
-      'Contact list supports filtering and sorting',
-      'Contact list can be exported',
+      { text: 'Companies and contacts are modeled and linked', requires: ['Co', 'Ct'] },
+      { text: 'Activities are logged against contacts', requires: ['Ay', 'Cr'] },
+      { text: 'Activities carry a date', requires: ['Dt'] },
+      { text: 'Contacts are searchable', requires: ['Se'] },
+      { text: 'Contact list supports filtering and sorting', requires: ['Fi', 'So'] },
+      { text: 'Contact list can be exported', requires: ['Ex'] },
+      { text: 'Contacts display in a Table with a Detail view', requires: ['Tb', 'Di'] },
+      { text: 'Records can be updated, deleted and viewed', requires: ['Up', 'De', 'Vw'] },
+      { text: 'Records carry a status', requires: ['Ss'] },
     ],
   },
   {
@@ -82,15 +102,18 @@ export const SCENARIOS: EvalScenario[] = [
       { family: 'interfaces', symbols: ['Tb'], description: 'Table view' },
       { family: 'rules', symbols: ['Pn'], description: 'Permission rules' },
     ],
-    expectedInterfaces: ['Table'],
+    groundTruthAtoms: ['In', 'Ss', 'Cu', 'Dt', 'Sd', 'Ed', 'Nm', 'Cr', 'Up', 'Fi', 'So', 'Ex', 'Tb', 'Pn'],
     minAtomsUsed: 7,
     acceptanceCriteria: [
-      'Invoices can be created with number, customer, amount, dates',
-      'Invoices have valid status transitions',
-      'Filter by status and date range',
-      'Sort by amount or date',
-      'Export filtered results as CSV',
-      'Admin-only access for create/update',
+      { text: 'Invoices are modeled as an entity', requires: ['In'] },
+      { text: 'Invoices have a number and an amount in currency', requires: ['Nm', 'Cu'] },
+      { text: 'Invoices have issue, start and end dates', requires: ['Dt', 'Sd', 'Ed'] },
+      { text: 'Invoices have a status', requires: ['Ss'] },
+      { text: 'Invoices can be created and updated', requires: ['Cr', 'Up'] },
+      { text: 'Users can filter and sort invoices', requires: ['Fi', 'So'] },
+      { text: 'Filtered results can be exported', requires: ['Ex'] },
+      { text: 'Invoices display in a Table', requires: ['Tb'] },
+      { text: 'Admin-only access for create/update', requires: ['Pn'] },
     ],
   },
   {
@@ -105,14 +128,16 @@ export const SCENARIOS: EvalScenario[] = [
       { family: 'interfaces', symbols: ['Tb', 'Fm'], description: 'Table + Form views' },
       { family: 'rules', symbols: ['Pn', 'Po'], description: 'Permission + Policy rules' },
     ],
-    expectedInterfaces: ['Table', 'Form'],
+    groundTruthAtoms: ['Us', 'Ro', 'Tm', 'Ss', 'Cr', 'Up', 'De', 'Vw', 'Fi', 'Tb', 'Fm', 'Pn', 'Po'],
     minAtomsUsed: 8,
     acceptanceCriteria: [
-      'Users can be created with name, email, role',
-      'Users can be organized into teams',
-      'Roles define permission sets',
-      'User status lifecycle (active, invited, disabled)',
-      'User list is filterable by role',
+      { text: 'Users, roles and teams are modeled', requires: ['Us', 'Ro', 'Tm'] },
+      { text: 'Users have a status lifecycle', requires: ['Ss'] },
+      { text: 'Users can be created, updated and deleted', requires: ['Cr', 'Up', 'De'] },
+      { text: 'Users can be viewed and the list filtered', requires: ['Vw', 'Fi'] },
+      { text: 'Users display in a Table and are edited via a Form', requires: ['Tb', 'Fm'] },
+      { text: 'Roles define permission sets', requires: ['Ro', 'Pn'] },
+      { text: 'Governing policy is enforced', requires: ['Po'] },
     ],
   },
   {
@@ -127,15 +152,18 @@ export const SCENARIOS: EvalScenario[] = [
       { family: 'interfaces', symbols: ['Tb', 'Fd'], description: 'Table + Feed views' },
       { family: 'rules', symbols: ['Ti', 'Cv', 'At', 'Au'], description: 'Trigger, Condition, Action, Audit' },
     ],
-    expectedInterfaces: ['Table', 'Feed'],
+    groundTruthAtoms: ['Wf', 'Ms', 'Em', 'Ss', 'Bl', 'Tr', 'No', 'Mg', 'Tb', 'Fd', 'Ti', 'Cv', 'At', 'Au'],
     minAtomsUsed: 8,
     acceptanceCriteria: [
-      'Rules can be created with trigger, condition, action',
-      'Notifications fire when conditions are met',
-      'Notifications can be email or in-app message',
-      'Rule list is viewable in a Table',
-      'Notification history is viewable in a Feed',
-      'All rule firings are audited',
+      { text: 'Rules are modeled as workflows carrying messages', requires: ['Wf', 'Ms'] },
+      { text: 'Email notifications are supported', requires: ['Em', 'No'] },
+      { text: 'In-app messages are sent', requires: ['Mg'] },
+      { text: 'Rules have a status and an enable flag', requires: ['Ss', 'Bl'] },
+      { text: 'Triggers fire notifications', requires: ['Tr', 'Ti'] },
+      { text: 'Conditions gate notification delivery', requires: ['Cv'] },
+      { text: 'Rules bind to a notification action', requires: ['At'] },
+      { text: 'Rule firings are audited', requires: ['Au'] },
+      { text: 'Rules display in a Table, history in a Feed', requires: ['Tb', 'Fd'] },
     ],
   },
   {
@@ -150,15 +178,17 @@ export const SCENARIOS: EvalScenario[] = [
       { family: 'interfaces', symbols: ['Gy', 'Tb', 'Di'], description: 'Gallery, Table, Detail views' },
       { family: 'intelligence', symbols: ['Sr', 'Rc'], description: 'Search, Recommend' },
     ],
-    expectedInterfaces: ['Gallery', 'Table', 'Detail'],
+    groundTruthAtoms: ['Pr', 'Tg', 'Cu', 'Ss', 'Tx', 'Cr', 'Up', 'Vw', 'Se', 'Fi', 'Gy', 'Tb', 'Di', 'Sr', 'Rc'],
     minAtomsUsed: 9,
     acceptanceCriteria: [
-      'Products have name, description, price, category, status',
-      'Products displayed in Grid and Table views',
-      'Search by name or description',
-      'Filter by category and price range',
-      'AI recommendations on product detail page',
-      'Admin-only create/update',
+      { text: 'Products and tags are modeled', requires: ['Pr', 'Tg'] },
+      { text: 'Products carry currency, status and description', requires: ['Cu', 'Ss', 'Tx'] },
+      { text: 'Products can be created and updated', requires: ['Cr', 'Up'] },
+      { text: 'Products can be browsed', requires: ['Vw'] },
+      { text: 'Products are searchable', requires: ['Se', 'Sr'] },
+      { text: 'Products can be filtered', requires: ['Fi'] },
+      { text: 'Products display in Gallery, Table and Detail views', requires: ['Gy', 'Tb', 'Di'] },
+      { text: 'AI recommendations are applied', requires: ['Rc'] },
     ],
   },
 ];

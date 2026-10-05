@@ -87,8 +87,13 @@ export function formatTableSummary(
 ): string {
   const byFamily: Record<string, string[]> = {};
   for (const el of elements) {
-    if (!byFamily[el.family]) byFamily[el.family] = [];
-    byFamily[el.family].push(`${el.symbol} (${el.name}): ${el.description}`);
+    const entry = `${el.symbol} (${el.name}): ${el.description}`;
+    const bucket = byFamily[el.family];
+    if (bucket) {
+      bucket.push(entry);
+    } else {
+      byFamily[el.family] = [entry];
+    }
   }
   const lines: string[] = ['Available Software Periodic Table elements:'];
   for (const [family, items] of Object.entries(byFamily)) {
