@@ -1,6 +1,12 @@
 {
   "$schema": "https://biomejs.dev/schemas/2.5.4/schema.json",
-  "assist": { "actions": { "source": { "organizeImports": "on" } } },
+  "assist": {
+    "actions": {
+      "source": {
+        "organizeImports": "on"
+      }
+    }
+  },
   "linter": {
     "enabled": true,
     "rules": {
@@ -34,11 +40,13 @@
   },
   "files": {
     "includes": [
+      "**/src/**/*.ts",
       "**/atoms/**/*.ts",
       "**/composer/**/*.ts",
       "**/examples/**/*.ts",
       "**/eval/**/*.ts",
       "**/scripts/**/*.ts",
+      "**/test/**/*.ts",
       "!**/node_modules",
       "!**/dist",
       "!**/ontology/**/*.json"

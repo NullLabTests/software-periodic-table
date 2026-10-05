@@ -1,39 +1,51 @@
 /**
  * Reports reference-implementation coverage of the ontology.
  *
- * Scans atoms/** for exported AtomMeta declarations (symbol + name) and
- * compares them against ontology/periodic-table.json. Useful for tracking
- * the roadmap goal of covering all 115 elements.
+ * Scans atoms/** for exported AtomMeta declarations (symbol + name) and compares
+ * them against ontology/periodic-table.json. Beyond counting coverage this also
+ * cross-checks the two directions that a pure count hides:
+ *
+ * - an implemented symbol whose recorded name disagrees with the ontology
+ * - an implemented symbol that is not in the ontology at all (a typo that would
+ *   otherwise be counted as coverage of nothing)
  *
  * Usage: npx tsx scripts/coverage.ts
  */
 
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { ATOMS_DIR, loadOntology, type Ontology } from '../src/ontology.js';
 
-const __dirname = new URL('.', import.meta.url).pathname;
-const ONTOLOGY_PATH = path.resolve(__dirname, '../ontology/periodic-table.json');
-const ATOMS_DIR = path.resolve(__dirname, '../atoms');
-
-interface OntologyElement {
-  id: number;
-  symbol: string;
-  name: string;
-  family: string;
-  description: string;
-  composesWith?: string[];
-}
-
-interface Ontology {
-  version: string;
-  families: { id: string; name: string; range: [number, number] }[];
-  elements: OntologyElement[];
-}
+const HERE = path.dirname(fileURLToPath(import.meta.url));
+const DEFAULT_ATOMS_DIR = path.resolve(HERE, '../atoms');
 
 const META_PATTERN =
   /(?:export\s+)?(?:const|function)\s+(\w+Meta)\s*[:=][\s\S]*?symbol:\s*'([A-Za-z]{2})'[\s\S]*?name:\s*'([^']+)'/g;
 
-function walk(dir: string, files: string[] = []): string[] {
+export interface FamilyCoverage {
+  family: string;
+  covered: number;
+  total: number;
+  percent: number;
+  missing: { id: number; symbol: string; name: string }[];
+}
+
+export interface CoverageReport {
+  version: string;
+  families: FamilyCoverage[];
+  covered: number;
+  total: number;
+  percent: number;
+  /** Implemented symbols with a name that disagrees with the ontology. */
+  mismatchedNames: { symbol: string; implementedName: string; ontologyName: string; file: string }[];
+  /** Implemented symbols that do not exist in the ontology. */
+  orphans: { symbol: string; name: string; file: string }[];
+  atomFileCount: number;
+  ontologyValid: boolean;
+}
+
+export function walk(dir: string, files: string[] = []): string[] {
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
     const full = path.join(dir, entry.name);
     if (entry.isDirectory()) walk(full, files);
@@ -42,77 +54,128 @@ function walk(dir: string, files: string[] = []): string[] {
   return files;
 }
 
-function findAtoms(dir: string): Map<string, string> {
-  const implemented = new Map<string, string>();
+export function findAtoms(dir: string): Map<string, { name: string; file: string }> {
+  const implemented = new Map<string, { name: string; file: string }>();
   for (const file of walk(dir)) {
     const source = fs.readFileSync(file, 'utf8');
     for (const match of source.matchAll(META_PATTERN)) {
-      implemented.set(match[2], match[3]);
+      const symbol = match[2];
+      const name = match[3];
+      if (symbol && name) {
+        implemented.set(symbol, { name, file: path.relative(dir, file) });
+      }
     }
   }
   return implemented;
 }
 
-function main(): void {
-  const ontology: Ontology = JSON.parse(fs.readFileSync(ONTOLOGY_PATH, 'utf8'));
-  const implemented = findAtoms(ATOMS_DIR);
+export function buildCoverageReport(ontology: Ontology, atomsDir: string = DEFAULT_ATOMS_DIR): CoverageReport {
+  const implemented = findAtoms(atomsDir);
+  const ontologyBySymbol = new Map(ontology.elements.map((e) => [e.symbol, e]));
 
-  const byFamily = new Map<
-    string,
-    { total: number; covered: number; missing: { id: number; symbol: string; name: string }[] }
-  >();
+  const byFamily = new Map<string, FamilyCoverage>();
   for (const family of ontology.families) {
-    byFamily.set(family.id, { total: 0, covered: 0, missing: [] });
+    byFamily.set(family.id, { family: family.id, covered: 0, total: 0, percent: 0, missing: [] });
   }
+
+  const mismatchedNames: CoverageReport['mismatchedNames'] = [];
+  const orphans: CoverageReport['orphans'] = [];
 
   for (const element of ontology.elements) {
     const stats = byFamily.get(element.family);
     if (!stats) continue;
     stats.total++;
-    if (implemented.has(element.symbol)) {
+
+    const found = implemented.get(element.symbol);
+    if (found) {
       stats.covered++;
+      // Names are not unique across families (Email is both an object and a
+      // property), so the name is compared per symbol rather than by lookup.
+      if (found.name !== element.name) {
+        mismatchedNames.push({
+          symbol: element.symbol,
+          implementedName: found.name,
+          ontologyName: element.name,
+          file: found.file,
+        });
+      }
     } else {
       stats.missing.push({ id: element.id, symbol: element.symbol, name: element.name });
     }
   }
 
-  const orphanFiles = walk(ATOMS_DIR)
-    .map((file) => path.relative(ATOMS_DIR, file))
-    .filter((file) => !file.includes('core.ts'));
+  for (const [symbol, info] of implemented) {
+    if (!ontologyBySymbol.has(symbol)) orphans.push({ symbol, name: info.name, file: info.file });
+  }
 
-  console.log(`Reference implementation coverage (ontology v${ontology.version})\n`);
+  let covered = 0;
+  let total = 0;
+  for (const stats of byFamily.values()) {
+    stats.percent = stats.total === 0 ? 0 : Math.round((stats.covered / stats.total) * 100);
+    covered += stats.covered;
+    total += stats.total;
+  }
+
+  return {
+    version: ontology.version,
+    families: ontology.families.map((f) => byFamily.get(f.id)!),
+    covered,
+    total,
+    percent: total === 0 ? 0 : Math.round((covered / total) * 100),
+    mismatchedNames,
+    orphans,
+    atomFileCount: walk(atomsDir).length,
+    ontologyValid: mismatchedNames.length === 0 && orphans.length === 0,
+  };
+}
+
+function main(): void {
+  const ontology = loadOntology();
+  const report = buildCoverageReport(ontology, ATOMS_DIR);
+
+  console.log(`Reference implementation coverage (ontology v${report.version})\n`);
   console.log(`${'Family'.padEnd(14)}${'Covered'.padEnd(8)}${'Total'.padEnd(7)}Coverage`);
   console.log('-'.repeat(46));
 
-  let totalCovered = 0;
-  let totalElements = 0;
-  for (const family of ontology.families) {
-    const stats = byFamily.get(family.id)!;
-    totalCovered += stats.covered;
-    totalElements += stats.total;
-    const pct = stats.total === 0 ? 0 : Math.round((stats.covered / stats.total) * 100);
-    console.log(`${family.id.padEnd(14)}${String(stats.covered).padEnd(8)}${String(stats.total).padEnd(7)}${pct}%`);
+  for (const stats of report.families) {
+    console.log(
+      `${stats.family.padEnd(14)}${String(stats.covered).padEnd(8)}${String(stats.total).padEnd(7)}${stats.percent}%`,
+    );
   }
-
-  const overallPct = totalElements === 0 ? 0 : Math.round((totalCovered / totalElements) * 100);
   console.log('-'.repeat(46));
   console.log(
-    `${'TOTAL'.padEnd(14)}${String(totalCovered).padEnd(8)}${String(totalElements).padEnd(7)}${overallPct}%\n`,
+    `${'TOTAL'.padEnd(14)}${String(report.covered).padEnd(8)}${String(report.total).padEnd(7)}${report.percent}%\n`,
   );
 
-  if (totalCovered < totalElements) {
-    console.log(`Missing implementations (${totalElements - totalCovered}):`);
-    for (const family of ontology.families) {
-      const stats = byFamily.get(family.id)!;
+  if (report.covered < report.total) {
+    console.log(`Missing implementations (${report.total - report.covered}):`);
+    for (const stats of report.families) {
       if (stats.missing.length === 0) continue;
-      console.log(`\n  ${family.id}:`);
+      console.log(`\n  ${stats.family}:`);
       for (const m of stats.missing) {
         console.log(`    ${String(m.id).padStart(3)} ${m.symbol} ${m.name}`);
       }
     }
   }
 
-  console.log(`\nAtom files: ${orphanFiles.length}`);
+  for (const mismatch of report.mismatchedNames) {
+    console.error(
+      `\n  ERROR: ${mismatch.file} declares ${mismatch.symbol} as "${mismatch.implementedName}" but the ontology calls it "${mismatch.ontologyName}"`,
+    );
+  }
+  for (const orphan of report.orphans) {
+    console.error(
+      `\n  ERROR: ${orphan.file} implements ${orphan.symbol} ("${orphan.name}"), which is not in the ontology`,
+    );
+  }
+  if (!report.ontologyValid) {
+    console.error('\nCoverage cross-check failed: atoms/ and ontology/ disagree.');
+    process.exit(1);
+  }
+
+  console.log(`\nAtom files: ${report.atomFileCount}`);
 }
 
-main();
+const invokedDirectly =
+  process.argv[1] !== undefined && import.meta.url.endsWith(process.argv[1].split('/').pop() ?? '');
+if (invokedDirectly) main();

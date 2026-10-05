@@ -1,210 +1,217 @@
 /**
- * Validates the periodic-table.json ontology for consistency and completeness.
+ * Validates periodic-table.json for schema conformance and internal consistency.
  *
- * Checks:
- * - All elements have required fields (id, symbol, name, family, description)
- * - IDs are unique and within family ranges
- * - Symbols are unique and exactly 2 characters
- * - Families are from the known set
- * - No duplicate names within a family (cross-family reuse is intentional)
- * - composesWith references resolve to defined symbols, in either direction
+ * Two layers:
+ *
+ * 1. Schema — the file is checked against `ontology/periodic-table.schema.json`,
+ *    which was previously shipped but never actually applied to anything.
+ * 2. Consistency — the rules a JSON Schema cannot express: unique ids, unique
+ *    symbols, ids inside their family's range, resolvable `composesWith`
+ *    references, and a fully allocated id space per family.
+ *
+ * Family ranges are read from the ontology rather than restated here, so the two
+ * cannot drift apart.
  *
  * Usage: npx tsx scripts/validate-ontology.ts
  */
 
-import * as fs from 'node:fs';
-import * as path from 'node:path';
+import { type SchemaError, unsupportedKeywords, validateSchema } from '../src/jsonschema.js';
+import {
+  ambiguousNames,
+  familyRanges,
+  isFamilyId,
+  loadOntology,
+  loadOntologySchema,
+  type Ontology,
+  type OntologyElement,
+} from '../src/ontology.js';
 
-const __dirname = new URL('.', import.meta.url).pathname;
-const ONTOLOGY_PATH = path.resolve(__dirname, '../ontology/periodic-table.json');
-
-interface OntologyElement {
-  id: number;
-  symbol: string;
-  name: string;
-  family: string;
-  description: string;
-  composesWith?: string[];
+export interface Finding {
+  severity: 'ERROR' | 'WARN' | 'INFO';
+  message: string;
 }
 
-interface OntologyFamily {
-  id: string;
-  name: string;
-  description: string;
-  range: [number, number];
-}
-
-interface Ontology {
+export interface ValidationReport {
   version: string;
-  description: string;
-  families: OntologyFamily[];
-  elements: OntologyElement[];
-  compositionNotes: Record<string, string>;
+  elementCount: number;
+  findings: Finding[];
+  errorCount: number;
+  warningCount: number;
+  infoCount: number;
+  ok: boolean;
 }
 
-const VALID_FAMILIES = new Set(['objects', 'properties', 'actions', 'interfaces', 'intelligence', 'rules']);
+export function validateOntology(ontology: Ontology, schema?: Record<string, unknown>): ValidationReport {
+  const findings: Finding[] = [];
+  const error = (message: string) => findings.push({ severity: 'ERROR', message });
+  const warn = (message: string) => findings.push({ severity: 'WARN', message });
+  const info = (message: string) => findings.push({ severity: 'INFO', message });
 
-const FAMILY_RANGES: Record<string, [number, number]> = {
-  objects: [1, 35],
-  properties: [36, 60],
-  actions: [61, 85],
-  interfaces: [86, 100],
-  intelligence: [101, 108],
-  rules: [109, 115],
-};
+  // ---- Layer 1: JSON Schema -------------------------------------------------
 
-let errors = 0;
-let warnings = 0;
-let infos = 0;
-
-function error(msg: string): void {
-  console.error(`  ERROR: ${msg}`);
-  errors++;
-}
-
-function warn(msg: string): void {
-  console.warn(`  WARN: ${msg}`);
-  warnings++;
-}
-
-function info(msg: string): void {
-  console.log(`  INFO: ${msg}`);
-  infos++;
-}
-
-function main(): void {
-  console.log('Validating ontology...\n');
-
-  const raw = fs.readFileSync(ONTOLOGY_PATH, 'utf-8');
-  const ontology: Ontology = JSON.parse(raw);
-
-  console.log(`Version: ${ontology.version}`);
-  console.log(`Families: ${ontology.families.length}`);
-  console.log(`Elements: ${ontology.elements.length}\n`);
-
-  // Validate families
-  const seenFamilyIds = new Set<string>();
-  for (const fam of ontology.families) {
-    if (!VALID_FAMILIES.has(fam.id)) {
-      error(`Unknown family id: ${fam.id}`);
+  if (schema) {
+    const unsupported = unsupportedKeywords(schema);
+    for (const location of unsupported) {
+      warn(`schema keyword not supported by the in-repo validator: ${location}`);
     }
-    if (seenFamilyIds.has(fam.id)) {
-      error(`Duplicate family id: ${fam.id}`);
-    }
-    seenFamilyIds.add(fam.id);
-
-    const expectedRange = FAMILY_RANGES[fam.id];
-    if (expectedRange) {
-      if (fam.range[0] !== expectedRange[0] || fam.range[1] !== expectedRange[1]) {
-        error(`Family ${fam.id} range [${fam.range.join(', ')}] does not match expected [${expectedRange.join(', ')}]`);
-      }
+    const schemaErrors: SchemaError[] = validateSchema(ontology, schema);
+    for (const e of schemaErrors) {
+      error(`schema: ${e.path}: ${e.message}`);
     }
   }
 
-  // Collect every declared symbol up front so that composesWith references can
-  // resolve in either direction. Doing this incrementally would flag every
-  // forward reference (an element composed with a later-defined element) as
-  // unresolved, since the target symbol would not have been seen yet.
-  const declaredSymbols = new Set<string>(ontology.elements.map((e) => e.symbol));
+  // ---- Layer 2: consistency -------------------------------------------------
 
-  // Validate elements
+  const ranges = familyRanges(ontology);
+
+  const seenFamilyIds = new Set<string>();
+  for (const family of ontology.families) {
+    if (!isFamilyId(family.id)) error(`unknown family id: ${family.id}`);
+    if (seenFamilyIds.has(family.id)) error(`duplicate family id: ${family.id}`);
+    seenFamilyIds.add(family.id);
+  }
+
+  const declaredSymbols = new Set(ontology.elements.map((e) => e.symbol));
   const seenIds = new Set<number>();
   const seenSymbols = new Set<string>();
   const seenNames = new Map<string, OntologyElement>();
+  const rangeOwners = new Map<string, OntologyElement>();
 
   for (const elem of ontology.elements) {
-    // Required fields
-    if (typeof elem.id !== 'number') error(`Element missing id: ${JSON.stringify(elem)}`);
-    if (!elem.symbol) error(`Element ${elem.id} missing symbol`);
-    if (!elem.name) error(`Element ${elem.id} missing name`);
-    if (!elem.family) error(`Element ${elem.id} missing family`);
-    if (!elem.description) error(`Element ${elem.id} missing description`);
+    if (typeof elem.id !== 'number') error(`element missing id: ${JSON.stringify(elem)}`);
+    if (!elem.symbol) error(`element ${elem.id} missing symbol`);
+    if (!elem.name) error(`element ${elem.id} missing name`);
+    if (!elem.family) error(`element ${elem.id} missing family`);
+    if (!elem.description) error(`element ${elem.id} missing description`);
 
-    // ID uniqueness
-    if (seenIds.has(elem.id)) error(`Duplicate element id: ${elem.id}`);
+    if (seenIds.has(elem.id)) error(`duplicate element id: ${elem.id}`);
     seenIds.add(elem.id);
 
-    // Symbol validation
-    if (elem.symbol.length !== 2) error(`Element ${elem.id} symbol "${elem.symbol}" is not exactly 2 characters`);
-    if (seenSymbols.has(elem.symbol)) error(`Duplicate symbol: ${elem.symbol}`);
+    if (elem.symbol.length !== 2) error(`element ${elem.id} symbol "${elem.symbol}" is not exactly 2 characters`);
+    if (seenSymbols.has(elem.symbol)) error(`duplicate symbol: ${elem.symbol}`);
     seenSymbols.add(elem.symbol);
 
-    // Name uniqueness. The same word legitimately names elements in different
-    // families (e.g. an Email object and an Email property), so only a repeat
-    // inside one family indicates a real collision.
+    // A name may legitimately recur across families (an Email object and an
+    // Email property), so only a repeat inside one family is a real collision.
     const priorName = seenNames.get(elem.name);
     if (priorName) {
       const detail = `"${priorName.family}" (${priorName.symbol}, id ${priorName.id})`;
       if (priorName.family === elem.family) {
         warn(
-          `Duplicate name in family ${elem.family}: "${elem.name}" — ${elem.symbol} (id ${elem.id}) collides with ${detail}`,
+          `duplicate name in family ${elem.family}: "${elem.name}" — ${elem.symbol} (id ${elem.id}) collides with ${detail}`,
         );
       } else {
         info(
-          `Name "${elem.name}" reused across families: ${detail} and "${elem.family}" (${elem.symbol}, id ${elem.id})`,
+          `name "${elem.name}" reused across families: ${detail} and "${elem.family}" (${elem.symbol}, id ${elem.id})`,
         );
       }
     }
     seenNames.set(elem.name, elem);
 
-    // Family validation
-    if (!VALID_FAMILIES.has(elem.family)) {
-      error(`Element ${elem.id} has unknown family: ${elem.family}`);
+    if (!isFamilyId(elem.family)) {
+      error(`element ${elem.id} has unknown family: ${elem.family}`);
     }
 
-    // ID range check
-    const range = FAMILY_RANGES[elem.family];
-    if (range) {
-      if (elem.id < range[0] || elem.id > range[1]) {
-        error(`Element ${elem.id} (${elem.symbol}) outside range for family ${elem.family} [${range}]`);
-      }
+    const range = ranges.get(elem.family);
+    if (range && (elem.id < range[0] || elem.id > range[1])) {
+      error(`element ${elem.id} (${elem.symbol}) outside range for family ${elem.family} [${range}]`);
     }
 
-    // composesWith references must resolve to a declared symbol. Reference
-    // order is irrelevant, so both backward and forward references are valid.
-    if (elem.composesWith) {
+    // Two elements may not claim the same id even across families, since the id
+    // is the element's identity in the table.
+    const rangeOwner = rangeOwners.get(String(elem.id));
+    if (rangeOwner) {
+      error(
+        `element id ${elem.id} is claimed by both ${rangeOwner.symbol} (${rangeOwner.family}) and ${elem.symbol} (${elem.family})`,
+      );
+    } else {
+      rangeOwners.set(String(elem.id), elem);
+    }
+
+    // composesWith must resolve to a declared symbol. Declaration order is
+    // irrelevant, so forward and backward references are both valid.
+    if (elem.composesWith !== undefined) {
       if (!Array.isArray(elem.composesWith)) {
-        error(`Element ${elem.id} composesWith is not an array`);
+        error(`element ${elem.id} composesWith is not an array`);
       } else {
         const localSeen = new Set<string>();
         for (const ref of elem.composesWith) {
           if (typeof ref !== 'string' || ref.length !== 2) {
-            error(`Element ${elem.id} composesWith entry "${ref}" is not a 2-char symbol`);
+            error(`element ${elem.id} composesWith entry "${ref}" is not a 2-char symbol`);
             continue;
           }
           if (localSeen.has(ref)) {
-            warn(`Element ${elem.id} (${elem.symbol}) lists "${ref}" in composesWith more than once`);
+            warn(`element ${elem.id} (${elem.symbol}) lists "${ref}" in composesWith more than once`);
           }
           localSeen.add(ref);
-          if (ref === elem.symbol) {
-            warn(`Element ${elem.id} (${elem.symbol}) composesWith itself`);
-          }
+          if (ref === elem.symbol) warn(`element ${elem.id} (${elem.symbol}) composesWith itself`);
           if (!declaredSymbols.has(ref)) {
-            error(`Element ${elem.id} (${elem.symbol}) composesWith unknown symbol "${ref}"`);
+            error(`element ${elem.id} (${elem.symbol}) composesWith unknown symbol "${ref}"`);
           }
         }
       }
+    } else {
+      warn(`element ${elem.id} (${elem.symbol}) declares no composesWith`);
     }
   }
 
-  // Check for missing IDs in each family range
-  for (const [family, [start, end]] of Object.entries(FAMILY_RANGES)) {
-    const familyElements = ontology.elements.filter((e) => e.family === family);
-    const familyIds = new Set(familyElements.map((e) => e.id));
+  // Every id inside every family range must be allocated.
+  for (const [family, [start, end]] of ranges) {
+    const familyIds = new Set(ontology.elements.filter((e) => e.family === family).map((e) => e.id));
     for (let id = start; id <= end; id++) {
-      if (!familyIds.has(id)) {
-        warn(`Missing element id ${id} in family ${family}`);
-      }
+      if (!familyIds.has(id)) warn(`unallocated id ${id} in family ${family} range [${start}, ${end}]`);
     }
   }
 
-  // Summary
-  const parts = [`${errors} errors, ${warnings} warnings`];
-  if (infos > 0) parts.push(`${infos} informational notes`);
-  console.log(`\nValidation complete. ${parts.join(', ')}.`);
-  if (errors > 0) {
-    process.exit(1);
+  // Names shared across families are intentional, but any tooling that resolves a
+  // bare name must know, so the ambiguity is reported rather than left implicit.
+  for (const [name, families] of ambiguousNames(ontology)) {
+    info(`name "${name}" is ambiguous across families: ${families.join(', ')}`);
   }
+
+  const errorCount = findings.filter((f) => f.severity === 'ERROR').length;
+  const warningCount = findings.filter((f) => f.severity === 'WARN').length;
+  const infoCount = findings.filter((f) => f.severity === 'INFO').length;
+
+  return {
+    version: ontology.version,
+    elementCount: ontology.elements.length,
+    findings,
+    errorCount,
+    warningCount,
+    infoCount,
+    ok: errorCount === 0,
+  };
 }
 
-main();
+function main(): void {
+  const ontology = loadOntology();
+  const schema = loadOntologySchema();
+  const report = validateOntology(ontology, schema);
+
+  console.log('Validating ontology...\n');
+  console.log(`Version: ${report.version}`);
+  console.log(`Families: ${ontology.families.length}`);
+  console.log(`Elements: ${report.elementCount}\n`);
+
+  // INFO first, then WARN, then ERROR: the reader wants the reassuring noise
+  // out of the way before the parts that need attention.
+  for (const severity of ['INFO', 'WARN', 'ERROR'] as const) {
+    for (const finding of report.findings.filter((f) => f.severity === severity)) {
+      const line = `  ${severity}: ${finding.message}`;
+      if (severity === 'ERROR') console.error(line);
+      else if (severity === 'WARN') console.warn(line);
+      else console.log(line);
+    }
+  }
+
+  const parts = [`${report.errorCount} errors, ${report.warningCount} warnings`];
+  if (report.infoCount > 0) parts.push(`${report.infoCount} informational notes`);
+  console.log(`\nValidation complete. ${parts.join(', ')}.`);
+
+  if (!report.ok) process.exit(1);
+}
+
+const invokedDirectly =
+  process.argv[1] !== undefined && import.meta.url.endsWith(process.argv[1].split('/').pop() ?? '');
+if (invokedDirectly) main();

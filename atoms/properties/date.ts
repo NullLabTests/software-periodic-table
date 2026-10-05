@@ -17,7 +17,7 @@ export const DateTimeMeta: AtomMeta = {
 };
 
 export function formatDate(date: Date): string {
-  return date.toISOString().split('T')[0];
+  return date.toISOString().slice(0, 10);
 }
 
 export function formatDateTime(date: Date): string {

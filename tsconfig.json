@@ -10,7 +10,22 @@
     "outDir": "dist",
     "rootDir": ".",
     "declaration": true,
-    "resolveJsonModule": true
+    "resolveJsonModule": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "noFallthroughCasesInSwitch": true
   },
-  "include": ["atoms/**/*", "composer/**/*", "examples/**/*", "eval/**/*", "scripts/**/*", "ontology/**/*"]
+  "include": [
+    "src/**/*",
+    "atoms/**/*",
+    "composer/**/*",
+    "eval/**/*",
+    "scripts/**/*",
+    "ontology/**/*"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "examples"
+  ]
 }

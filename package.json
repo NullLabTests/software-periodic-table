@@ -10,12 +10,16 @@
     "example:product": "tsx examples/product-catalog.ts",
     "example:invoice": "tsx examples/invoice-dashboard.ts",
     "eval": "tsx eval/runner.ts",
-    "eval:llm": "LLM_API_KEY=$OPENAI_API_KEY tsx eval/runner.ts",
+    "eval:agent": "tsx eval/agent-eval.ts",
     "validate": "tsx scripts/validate-ontology.ts",
     "coverage": "tsx scripts/coverage.ts",
-    "check": "tsc --noEmit",
+    "search": "tsx scripts/search.ts",
+    "check": "tsc --noEmit && tsc -p tsconfig.test.json && tsc -p tsconfig.examples.json",
+    "test": "node --import tsx --test test/*.test.ts",
     "format": "biome check --write",
-    "lint": "biome check"
+    "lint": "biome check",
+    "ci": "npm run validate && npm run coverage && npm run lint && npm run check && npm test && npm run build && npm run examples:check",
+    "examples:check": "tsx examples/task-board.ts > /dev/null && tsx examples/crm-contacts.ts > /dev/null && tsx examples/product-catalog.ts > /dev/null && tsx examples/invoice-dashboard.ts > /dev/null && echo 'all examples ran'"
   },
   "keywords": [
     "software-ontology",
@@ -36,5 +40,43 @@
     "@types/node": "^22.0.0",
     "tsx": "^4.19.0",
     "typescript": "^5.6.0"
+  },
+  "main": "./dist/atoms/core.js",
+  "types": "./dist/atoms/core.d.ts",
+  "files": [
+    "dist",
+    "ontology",
+    "atoms",
+    "composer",
+    "src",
+    "README.md",
+    "LICENSE"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/atoms/core.d.ts",
+      "default": "./dist/atoms/core.js"
+    },
+    "./loader": {
+      "types": "./dist/src/ontology.d.ts",
+      "default": "./dist/src/ontology.js"
+    },
+    "./composer": {
+      "types": "./dist/composer/prompt.d.ts",
+      "default": "./dist/composer/prompt.js"
+    },
+    "./schema": {
+      "types": "./dist/src/jsonschema.d.ts",
+      "default": "./dist/src/jsonschema.js"
+    },
+    "./atoms/*.js": {
+      "types": "./dist/atoms/*.d.ts",
+      "default": "./dist/atoms/*.js"
+    },
+    "./atoms/*": {
+      "types": "./dist/atoms/*.d.ts",
+      "default": "./dist/atoms/*.js"
+    },
+    "./package.json": "./package.json"
   }
 }

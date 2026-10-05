@@ -49,7 +49,7 @@ export function materializeKanban(
     const status = String(item.status ?? '');
     const col = spec.columns.find((c) => c.statusValue === status);
     if (col) {
-      board[col.id].push(item);
+      board[col.id]?.push(item);
     }
   }
   return board;
