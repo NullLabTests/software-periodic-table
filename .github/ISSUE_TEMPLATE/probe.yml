@@ -1,9 +1,0 @@
-name: Probe
-description: temporary
-body:
-  - type: input
-    id: probe
-    attributes:
-      label: Probe
-    validations:
-      required: true
