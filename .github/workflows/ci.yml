@@ -6,9 +6,14 @@ on:
   pull_request:
     branches: [main]
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  check:
+  ci:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
 
     steps:
       - uses: actions/checkout@v4
@@ -20,10 +25,49 @@ jobs:
 
       - run: npm ci
 
-      - run: npm run validate
+      # Individual steps mirror the npm scripts, so a failure names the stage.
+      - name: Validate ontology
+        run: npm run validate
 
-      - run: npm run coverage
+      - name: Report coverage
+        run: npm run coverage
 
-      - run: npm run lint
+      - name: Lint
+        run: npm run lint
 
-      - run: npm run check
+      - name: Type-check
+        run: npm run check
+
+      - name: Test
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+      - name: Run examples
+        run: npm run examples:check
+
+      - name: Evaluation harness self-check
+        run: npm run eval
+
+  # The built package must be able to find its own ontology, which is a
+  # different failure mode from running from a source checkout.
+  build-artifacts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+      - run: npm run build
+      - name: Run the compiled output
+        run: |
+          node dist/scripts/validate-ontology.js
+          node dist/scripts/coverage.js
+          npm pack --dry-run

@@ -36,10 +36,27 @@ Agent (composition mode):
 2. Properties: Status (Ss), Priority (Py), Owner (Ow), CreatedAt (Ca), UpdatedAt (Ua)
 3. Actions: Create (Cr), Update (Up), View (Vw), Assign (As)
 4. Interfaces: Kanban (Kb), Table (Tb)
-5. Rules: Permission (Pm)
+5. Rules: Permission (Pn)
 
 [Agent then generates minimal wiring code]
 ```
+
+## Symbols Are Not Always Unique Across Families
+
+Five names each name an element in two families. The ontology resolves this with
+distinct symbols, so always check which one you mean:
+
+| Name | Object | Property | Action | Intelligence | Rule |
+|---|---|---|---|---|---|
+| Email | `Em` | `Ea` | | | |
+| Message | `Ms` | | `Mg` | | |
+| Search | | | `Se` | `Sr` | |
+| Trigger | | | `Tr` | | `Ti` |
+| Schedule | | | `Sc` | | `Sa` |
+
+A plan's family buckets carry this information, so resolve a name *within* its
+family. `eval/metrics.ts` exposes `normalizePlanNames()` for this; a bare
+name-to-symbol lookup silently picks whichever family was declared last.
 
 ## Pattern 2: Direct Prompt Injection
 
@@ -54,7 +71,7 @@ Available software atoms (symbol: name - description):
 - Up: Update - Modify an existing object
 - Kb: Kanban - Column-based status board
 - Tb: Table - Structured rows and columns
-- Pm: Permission - Access control statement
+- Pn: Permission - Access control statement
 ...
 ```
 
@@ -116,6 +133,13 @@ Retrieved atoms: Kanban (Kb), Table (Tb), Board (Bd), Card (Cd)
 ```
 Query: "Users need to be able to notify each other"
 Retrieved atoms: Notify (No), Message (Mg), Trigger (Tr), Email (Em)
+```
+
+### Rule-driven retrieval
+
+```
+Query: "Approve an invoice only if the amount is under $10k"
+Retrieved atoms: Permission (Pn), Condition (Cv), Approve (Ap), Policy (Po)
 ```
 
 ## Validation

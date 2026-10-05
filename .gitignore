@@ -1,5 +1,9 @@
 node_modules/
 dist/
+*.zip
+
+# Generated evaluation artefacts
 eval-results.json
 agent-eval-results.json
-*.zip
+baseline-results.json
+composition-results.json

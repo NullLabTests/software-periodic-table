@@ -3,7 +3,8 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![TypeScript](https://img.shields.io/badge/TypeScript-strict-blue.svg)](tsconfig.json)
 [![Atoms](https://img.shields.io/badge/atoms-115-6f42c1.svg)](ontology/periodic-table.json)
-[![CI](https://img.shields.io/badge/CI-passing-brightgreen.svg)](.github/workflows/)
+[![CI](https://github.com/NullLabTests/software-periodic-table/actions/workflows/ci.yml/badge.svg)](https://github.com/NullLabTests/software-periodic-table/actions/workflows/ci.yml)
+[![Tests](https://img.shields.io/badge/tests-node--test-informational.svg)](test/)
 
 **A finite ontology of recurring software elements — and a composition framework for building applications with LLMs and coding agents.**
 
@@ -11,17 +12,23 @@
 
 This repository formalizes that observation into a concrete artifact:
 
-1. A machine-readable **ontology** of 115 software elements (the Periodic Table), organized into six families.
-2. Typed **reference implementations** in strict TypeScript.
+1. A machine-readable **ontology** of 115 software elements (the Periodic Table), organized into six families, with a JSON Schema and a validator that enforces it.
+2. Typed **reference implementations** in strict TypeScript, with behaviour tests.
 3. A **composition model** with system prompts and retrieval patterns designed for modern coding agents.
-4. An **evaluation harness** for measuring token efficiency, composition fidelity, and correctness.
+4. An **evaluation harness** for measuring composition fidelity and correctness against a baseline.
+
+> **On empirical claims:** this project makes no measured claim that composition
+> beats generation. An earlier version reported a 39% token saving; that figure
+> was withdrawn once it became clear the metric mostly measured the length of an
+> abbreviation. The evaluation methodology is the contribution here, and running
+> it is the next step. See [`docs/EVAL_RESULTS.md`](docs/EVAL_RESULTS.md).
 
 ## Contributions
 
 - **A finite-element ontology for application software.** We identify 115 elements across six families (Objects, Properties, Actions, Interfaces, Intelligence, Rules) that suffice to express the vast majority of business-application features.
-- **A composition-over-generation thesis.** We argue and provide a framework to measure that selecting and wiring curated atoms is superior to regenerating equivalent patterns for each task.
-- **An agent-ready library.** Atoms expose typed interfaces and metadata that agents can reason about, retrieve, and compose. The system prompt and plan schema are included.
-- **A reproducible evaluation methodology.** The harness defines baseline vs. composition comparison with structural metrics and atom-usage tracking.
+- **A composition-over-generation framework.** A curated, agent-oriented library plus the prompts and plan schema for selecting and wiring from it. The thesis is argued and instrumented; it is not yet supported by a published measurement.
+- **A verified data artifact.** Every invariant the ontology is supposed to hold — unique ids and symbols, ids inside their family range, a fully allocated id space, resolvable composition references — is enforced by the validator and covered by tests, so a table an agent can trust is a table a machine checks.
+- **A reproducible evaluation methodology.** Baseline vs. composition scored on ground-truth recall and on acceptance criteria that name the atoms satisfying them, with notation length controlled for.
 
 ## The Six Families
 
@@ -53,35 +60,47 @@ New elements are added only when a concept is both widely recurring and not expr
 
 ```
 software-periodic-table/
-├── ontology/                  # Canonical definitions (JSON, single source of truth)
-│   └── periodic-table.json    # 115 elements with metadata
-├── atoms/                     # Typed reference implementations
-│   ├── core.ts                # Shared types: Atom, ObjectAtom, ActionRequest, etc.
-│   ├── objects/               # Object atoms: user.ts, task.ts
-│   ├── properties/            # Property atoms: status.ts
-│   ├── actions/               # Action atoms: crud.ts
-│   ├── interfaces/            # Interface atoms: table.ts, kanban.ts
-│   ├── intelligence/          # Intelligence atoms (stubs for extension)
-│   └── rules/                 # Rule atoms: permission.ts
-├── composer/                  # Composition layer & agent prompts
-│   └── prompt.ts              # System prompt + plan schema
-├── examples/                  # End-to-end compositions
-│   └── task-board.ts          # Runnable example: Task + User + Kanban + Table
-├── eval/                      # Evaluation harness
-│   ├── runner.ts              # Benchmark runner
-│   ├── scenarios.ts           # Feature-request scenarios
-│   ├── metrics.ts             # Token / structure measurement
-│   └── README.md              # How to run & interpret eval
-├── docs/                      # Design notes, agent guide, paper outline
-│   ├── DESIGN.md              # Rationale and design decisions
-│   ├── AGENT_USAGE.md         # How to use with coding agents
-│   ├── CONTRIBUTING.md        # Guidelines for extending the table
-│   └── PAPER_OUTLINE.md       # Draft outline for an arXiv submission
-├── scripts/                   # Utility scripts
-│   ├── validate-ontology.ts   # Schema + consistency checks
-│   └── coverage.ts            # Atom implementation coverage report
-├── CITATION.cff               # Citation metadata
-├── LICENSE                    # MIT
+├── ontology/                       # Canonical definitions (JSON, single source of truth)
+│   ├── periodic-table.json         # 115 elements with metadata
+│   └── periodic-table.schema.json  # JSON Schema, enforced by the validator
+├── atoms/                          # Typed reference implementations
+│   ├── core.ts                     # Shared types: Atom, ObjectAtom, ActionRequest, etc.
+│   ├── objects/                    # Object atoms: user.ts, task.ts
+│   ├── properties/                 # Property atoms: status.ts
+│   ├── actions/                    # Action atoms: crud.ts, trigger.ts
+│   ├── interfaces/                 # Interface atoms: table.ts, kanban.ts, feed.ts
+│   ├── intelligence/               # Intelligence atoms: model-backed primitives
+│   └── rules/                      # Rule atoms: permission.ts, trigger.ts, action.ts
+├── src/                            # Shared infrastructure
+│   ├── ontology.ts                 # Loader, name/symbol indexes, family ranges
+│   └── jsonschema.ts               # Dependency-free JSON Schema subset validator
+├── composer/                       # Composition layer & agent prompts
+│   └── prompt.ts                   # System prompt + plan schema
+├── examples/                       # End-to-end compositions
+│   ├── task-board.ts               # Task + User + Kanban + Table
+│   ├── crm-contacts.ts
+│   ├── product-catalog.ts
+│   └── invoice-dashboard.ts
+├── eval/                           # Evaluation harness
+│   ├── runner.ts                   # Entry point: baseline vs composition
+│   ├── llm.ts                      # LLMProvider interface + OpenAI implementation
+│   ├── scenarios.ts                # Feature requests, ground truth, acceptance criteria
+│   ├── metrics.ts                  # Fidelity, acceptance and token scoring
+│   ├── agent-eval.ts               # Sub-agent variant of the same comparison
+│   └── README.md                   # How to run & interpret eval
+├── test/                           # node:test suite — ontology, schema, metrics, atoms
+├── docs/
+│   ├── DESIGN.md                   # Rationale and design decisions
+│   ├── AGENT_USAGE.md              # How to use with coding agents
+│   ├── EVAL_RESULTS.md             # What was measured, and what was withdrawn
+│   ├── CONTRIBUTING.md             # Guidelines for extending the table
+│   └── PAPER_OUTLINE.md            # Draft outline for an arXiv submission
+├── scripts/
+│   ├── validate-ontology.ts        # Schema + consistency checks
+│   ├── coverage.ts                 # Coverage report + atoms/ontology cross-check
+│   └── search.ts                   # Query the table: npm run search -- <term>
+├── CITATION.cff                    # Citation metadata
+├── LICENSE                         # MIT
 ├── package.json
 ├── tsconfig.json
 └── README.md
@@ -91,26 +110,52 @@ software-periodic-table/
 
 ```bash
 # Install dependencies
-npm install
+npm ci
 
-# Inspect the ontology (115 elements)
-npx tsx scripts/validate-ontology.ts
+# Validate the ontology: JSON Schema + internal consistency
+npm run validate
 
-# Report reference-implementation coverage (90/115 atoms implemented)
-npx tsx scripts/coverage.ts
+# Reference-implementation coverage, with a cross-check against atoms/
+npm run coverage
 
-# Run composition examples
-npx tsx examples/task-board.ts          # Task + Kanban board
-npx tsx examples/crm-contacts.ts        # CRM contact management
-npx tsx examples/product-catalog.ts     # Product catalog + AI Search/Recommend
-npx tsx examples/invoice-dashboard.ts   # Invoice dashboard + Filter/Export/Chart
+# Type-check, lint, and run the test suite
+npm run check
+npm run lint
+npm test
 
-# Run the evaluation harness (mock mode)
-npx tsx eval/runner.ts
+# Run the composition examples
+npm run example          # Task + Kanban board
+npm run example:crm      # CRM contact management
+npm run example:product  # Product catalog + AI Search/Recommend
+npm run example:invoice  # Invoice dashboard + Filter/Export/Chart
 
-# Run with real LLM (requires OPENAI_API_KEY)
-OPENAI_API_KEY=sk-... npx tsx eval/runner.ts
+# Everything CI runs, in one command
+npm run ci
+
+# Evaluation harness self-check (no API key needed)
+npm run eval
+
+# Real baseline vs composition (requires OPENAI_API_KEY or LLM_API_KEY)
+OPENAI_API_KEY=sk-... npm run eval
 ```
+
+## Tests
+
+The ontology is a data artifact that agents consume, so its invariants are
+enforced by tests rather than by convention:
+
+- `test/ontology.test.ts` — the shipped table is internally consistent, and the
+  validator provably catches duplicate ids, duplicate symbols, out-of-range ids,
+  unknown families, unresolvable `composesWith` references, and unallocated ids.
+- `test/jsonschema.test.ts` — the in-repo schema validator, including the
+  `if`/`then`/`const` machinery the per-family id bounds depend on.
+- `test/metrics.test.ts` — regression tests for the evaluation bugs fixed in
+  v0.5.0 (the `notes` characters in `planOverlap`, the acceptance fall-through,
+  the cross-family name collision) plus consistency between each scenario's
+  acceptance criteria and its ground truth.
+- `test/atoms.test.ts` — behaviour of the atom implementations.
+
+Run with `npm test`. No test framework dependency; `node:test` and `tsx` only.
 
 ## Ontology Validation
 
@@ -142,28 +187,77 @@ See `docs/AGENT_USAGE.md` for a detailed walkthrough of both patterns, including
 
 ## Status
 
-The ontology (115 elements) is stable. Reference implementations exist for 90 atoms (78%) across all six families: 100% of Objects, Properties, and Intelligence, 71% of Rules, 44% of Actions, and 40% of Interfaces (run `npm run coverage` for the live report). The composition system prompt, examples, and evaluation harness are functional. Remaining work includes expanding reference coverage, implementing actual LLM-based evaluation runs, and collecting empirical results for publication.
+The ontology (115 elements) is stable. Reference implementations exist for 94 atoms (82%) across all six families: 100% of Objects, Properties, and Intelligence, 86% of Rules, 48% of Actions, and 53% of Interfaces (run `npm run coverage` for the live report). Every atom used by the evaluation scenarios is implemented. The composition system prompt, examples, and evaluation harness are functional and unit-tested.
+
+**No empirical claim is made yet.** An earlier version of this README reported a
+39% token saving from composition. That figure has been withdrawn: the metric
+compared plans written in 2-character symbols against plans written in full
+descriptive names, so most of the measured saving was the cost of the
+abbreviation rather than the cost of the approach. The harness has been corrected
+and now scores ground-truth recall and acceptance criteria as its primary
+metrics, but no corrected LLM run has been published. See
+[`docs/EVAL_RESULTS.md`](docs/EVAL_RESULTS.md).
+
+Remaining work: expand reference coverage to all 115 elements, run and publish a
+corrected LLM evaluation, and collect empirical results.
 
 ## Limitations
 
-- The current reference implementations cover only a subset of the 115 elements. Elements without implementations have precise descriptions in the ontology but lack TypeScript stubs.
-- The evaluation harness includes mock scoring by default. Real LLM integration requires provider API keys and is left as a configuration step.
-- Domain-specific concepts (insurance claims, retail SKUs, etc.) are intentionally excluded from the core table. They belong in optional domain packs.
+- Reference implementations cover 94 of 115 elements. The remainder have precise
+  descriptions in the ontology but no TypeScript implementation.
+- The evaluation harness is reproducible but has not been run against a live
+  model, so it demonstrates the methodology rather than a result.
+- Token counts in the harness are a `characters / 4` estimate, not a tokenizer.
+  Because notation length dominates that measure, plans are also compared with
+  symbols expanded to full names.
+- Domain-specific concepts (insurance claims, retail SKUs, etc.) are intentionally
+  excluded from the core table. They belong in optional domain packs.
+- Five names each identify elements in two families (`Email`, `Message`,
+  `Search`, `Trigger`, `Schedule`). The symbols are distinct, but a bare
+  name-to-symbol lookup is ambiguous — see the table in
+  [`docs/AGENT_USAGE.md`](docs/AGENT_USAGE.md).
 
 ## Roadmap
 
-- **Near term:** Expand reference implementations to cover all 115 elements. Remaining families: Actions (11 missing), Interfaces (9 missing), Rules (2 missing).
-- **Medium term:** Conduct systematic LLM evaluation (baseline vs. composition) and publish results. Collect community-contributed atoms through the contribution process.
-- **Long term:** Port ontology to additional languages (Python, Rust, Go). Develop domain packs for common verticals.
+- **Near term:** Expand reference implementations to cover all 115 elements. Remaining families: Actions (13 missing), Interfaces (7 missing), Rules (1 missing).
+- **Medium term:** Run a corrected LLM evaluation, publish the results with the
+  raw JSON, and collect community-contributed atoms.
+- **Long term:** Port the ontology to additional languages (Python, Rust, Go).
+  Develop domain packs for common verticals.
 
 ## Contributing
 
-See `docs/CONTRIBUTING.md`. New atoms must:
+Contributions are welcome, and the ontology is the part most people want to
+change. See [`docs/CONTRIBUTING.md`](docs/CONTRIBUTING.md) for the full process.
 
-- Fit an existing family or justify a new one with strong evidence.
-- Provide a clear interface.
-- Include at least one reference implementation or precise specification.
-- Prefer composition of existing atoms over new primitives.
+A new element is only added if it is **widely recurring** and **not expressible
+by composing existing atoms**. Most rejected proposals fail the second test, so
+before opening one, check whether `composesWith` already covers the concept:
+
+```bash
+npm run search -- subscription
+npm run search -- message --family actions   # disambiguate across families
+npm run search -- --symbol Tk
+```
+
+There are issue templates for [bugs](.github/ISSUE_TEMPLATE/bug_report.yml) and
+[ontology proposals](.github/ISSUE_TEMPLATE/ontology_proposal.yml), and a pull
+request checklist that keeps documentation and coverage numbers in sync with the
+code.
+
+Before opening a pull request:
+
+```bash
+npm run ci
+```
+
+That runs the validator, the coverage report, lint, type-checking across all
+three tsconfig projects, the test suite, a build, and every example.
+
+### Governance
+
+- [Code of Conduct](CODE_OF_CONDUCT.md)
+- [Security Policy](SECURITY.md) — report vulnerabilities privately
 
 ## Citation
 

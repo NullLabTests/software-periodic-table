@@ -6,7 +6,7 @@
 
 ## Abstract (draft)
 
-Large language models and coding agents are increasingly used to generate application software from natural-language descriptions. However, current approaches typically regenerate the same recurring patterns — user models, status machines, CRUD handlers, table views, permission checks — from scratch on every task. This is token-inefficient, introduces unnecessary variance, and makes verification harder. We present the Software Periodic Table, a curated ontology of 115 elemental software building blocks organized into six families: Objects, Properties, Actions, Interfaces, Intelligence, and Rules. We provide typed reference implementations, a composition system prompt for LLMs, and an evaluation harness for measuring token efficiency and composition fidelity. In a suite of six realistic feature-request scenarios, we characterize the atom-usage patterns and estimated token costs of a composition-based approach, and we describe a methodology for systematic comparison against unconstrained generation.
+Large language models and coding agents are increasingly used to generate application software from natural-language descriptions. However, current approaches typically regenerate the same recurring patterns — user models, status machines, CRUD handlers, table views, permission checks — from scratch on every task. This is token-inefficient, introduces unnecessary variance, and makes verification harder. We present the Software Periodic Table, a curated ontology of 115 elemental software building blocks organized into six families: Objects, Properties, Actions, Interfaces, Intelligence, and Rules. We provide typed reference implementations with tests, a composition system prompt for LLMs, and an evaluation harness that scores plans against per-scenario ground truth and on acceptance criteria that name the atoms satisfying them. Our contribution is the ontology and a reproducible evaluation methodology: we report no measured claim that composition beats generation, and we document a token-saving figure we initially reported and then withdrew once we established that it primarily measured abbreviation length rather than plan content.
 
 ## Structure
 
@@ -42,10 +42,11 @@ Large language models and coding agents are increasingly used to generate applic
 ### 5. Evaluation
 
 - Six scenarios: task board, CRM contacts, invoice list, user/role management, notification rules, product catalog
-- Metrics: atom usage, families covered, within-table rate, token estimates, acceptance criteria
-- Baseline vs. composition methodology
-- Mock evaluation results
-- Plan for real LLM evaluation
+- Primary metrics: ground-truth recall and precision, and acceptance criteria that name the atoms satisfying them
+- Baseline vs. composition methodology: same model, same feature request, differing only in whether the table is shown; the baseline's descriptive names are resolved to symbols within their own family
+- Controlling for notation: tokens are reported both raw and with both arms expanded to full names, because a 2-character symbol is shorter than a descriptive name regardless of whether composition helped
+- **Outstanding: no live-model results yet.** A preliminary token-saving figure was withdrawn once it became clear the metric mostly measured abbreviation length
+- Plan for the real evaluation, and what a supporting result would have to show
 
 ### 6. Related Work
 
@@ -57,7 +58,8 @@ Large language models and coding agents are increasingly used to generate applic
 
 ### 7. Limitations and Future Work
 
-- Current implementation coverage (subset of 115)
+- Reference implementations cover 94 of 115 elements; the remainder are described but not implemented
+- No live-model evaluation results yet; the harness is verified but unrun against a model
 - Domain-specific elements intentionally excluded
 - Need for empirical LLM evaluation
 - Language ports (Python, Rust, Go)

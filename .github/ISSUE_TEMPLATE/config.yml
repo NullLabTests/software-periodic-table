@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/NullLabTests/software-periodic-table/security/advisories/new
+    about: Report privately. Please do not open a public issue for a vulnerability.
+  - name: Question or discussion
+    url: https://github.com/NullLabTests/software-periodic-table/discussions
+    about: Usage questions, design discussion, or anything not yet a bug.

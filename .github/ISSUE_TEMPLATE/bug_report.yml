@@ -1,0 +1,71 @@
+name: Bug report
+description: Something in the ontology, an implementation, or the tooling behaves incorrectly
+labels: ["bug", "needs triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. If the problem is with the ontology's contents
+        rather than its code, see "Ontology proposal" instead.
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you observed, and what you expected instead.
+      placeholder: |
+        `npm run validate` reports "element 42 (Xt) outside range for family objects [1, 35]"
+        but the ontology file has id 42 listed under properties.
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: Commands, and the relevant file or line.
+      render: shell
+      placeholder: |
+        npm ci
+        npm run validate
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Version or commit
+      placeholder: v0.4.0, or the short commit SHA
+    validations:
+      required: true
+
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: Node version and operating system.
+      placeholder: node v22.11.0, ubuntu-24.04
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Which area
+      options:
+        - Ontology contents or metadata
+        - Atom implementation
+        - Validator or schema
+        - Evaluation harness
+        - Documentation
+        - Packaging or tooling
+        - Not sure
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behaviour
+      description: >-
+        Especially for ontology reports: which element, and what it should be.
+    validations:
+      required: true

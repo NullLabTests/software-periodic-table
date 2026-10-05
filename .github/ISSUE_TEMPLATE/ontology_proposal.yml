@@ -1,0 +1,84 @@
+name: Ontology proposal
+description: Propose a new element, or a change to an existing one
+labels: ["ontology", "needs discussion"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        An element is only added if it is **widely recurring** and **not
+        expressible by composing existing atoms**. Please justify both, because
+        most rejected proposals fail one of them.
+
+        Before proposing, check that the concept is not already covered by
+        `composesWith` on an existing element:
+
+        ```
+        npm run search -- your-term
+        ```
+
+  - type: input
+    id: name
+    attributes:
+      label: Element name
+      description: Title case, matching the existing convention.
+      placeholder: Subscription
+    validations:
+      required: true
+
+  - type: dropdown
+    id: family
+    attributes:
+      label: Family
+      description: |
+        - **Objects** are entities with identity and state.
+        - **Properties** are attributes of another element.
+        - **Actions** are operations that change or read state.
+        - **Interfaces** are ways of presenting or inputting.
+        - **Intelligence** are model-backed primitives.
+        - **Rules** are governance or automation constraints.
+      options:
+        - Objects
+        - Properties
+        - Actions
+        - Interfaces
+        - Intelligence
+        - Rules
+    validations:
+      required: true
+
+  - type: input
+    id: symbol
+    attributes:
+      label: Proposed two-character symbol
+      description: Must be unique. Uppercase first letter, lowercase second.
+      placeholder: Sb
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: One sentence, in the style of the existing entries.
+      placeholder: Recurring time-based subscription between a user and a paid plan.
+    validations:
+      required: true
+
+  - type: textarea
+    id: justification
+    attributes:
+      label: Why this is not composable from existing elements
+      description: >
+        Show which existing atoms you tried to combine, and what they cannot
+        express. A proposal that only argues the concept is important is not
+        sufficient.
+    validations:
+      required: true
+
+  - type: textarea
+    id: recurrence
+    attributes:
+      label: Where does this recur?
+      description: Applications, frameworks, or domains where this concept appears.
+    validations:
+      required: true
