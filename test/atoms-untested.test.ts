@@ -33,6 +33,7 @@ import { createSummarize, SummarizeMeta } from '../atoms/intelligence/summarize.
 import { CalendarMeta, defineCalendar, materializeCalendar } from '../atoms/interfaces/calendar.js';
 import { ChartMeta, defineChart, materializeChart } from '../atoms/interfaces/chart.js';
 import { DetailMeta, defineDetail, materializeDetail } from '../atoms/interfaces/detail.js';
+import { defineForm, FormMeta, materializeForm } from '../atoms/interfaces/form.js';
 import { AddressMeta, formatAddress } from '../atoms/properties/address.js';
 import { AiFieldMeta, isAiGenerated, markAiGenerated } from '../atoms/properties/ai-field.js';
 import { BooleanMeta, parseBoolean } from '../atoms/properties/boolean.js';
@@ -496,6 +497,29 @@ describe('Interfaces atoms', () => {
     const { sections, data } = materializeDetail(spec, { title: 'Test Task' });
     assert.equal(sections.length, 1);
     assert.equal(data.title, 'Test Task');
+  });
+
+  it('Form (Fm) defines and materializes form views', () => {
+    assert.equal(FormMeta.symbol, 'Fm');
+    assert.equal(FormMeta.family, 'interfaces');
+    const spec = defineForm({
+      objectType: 'Task',
+      fields: [{ key: 'title', label: 'Title', type: 'text', required: true }],
+    });
+    assert.equal(spec.kind, 'Form');
+    assert.equal(spec.objectType, 'Task');
+    assert.equal(spec.submitLabel, 'Save');
+    assert.equal(spec.cancelLabel, 'Cancel');
+    assert.equal(spec.layout, 'vertical');
+    assert.deepEqual(spec.actions, ['Create', 'Update']);
+
+    const { fields, values, spec: outSpec } = materializeForm(spec);
+    assert.equal(fields.length, 1);
+    assert.deepEqual(values, {});
+    assert.equal(outSpec, spec);
+
+    const withData = materializeForm(spec, { title: 'Test' });
+    assert.deepEqual(withData.values, { title: 'Test' });
   });
 });
 
