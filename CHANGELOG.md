@@ -10,7 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Test coverage for all 8 intelligence atoms (Search, Summarize, Classify, Recommend, Analyze, Extract, Generate, Prompt)
-- Test coverage for all 22 properties atoms (Status, Text, Number, Date, DateTime, Currency, Enum, Boolean, ID, Owner, Priority, CreatedAt, UpdatedAt, Score, Percent, Duration, Count, JSON, Address, AI, StartDate, EndDate, Email, Phone, URL)
+- Test coverage for all 25 properties atoms (Status, Text, Number, Date, DateTime, Currency, Enum, Boolean, ID, Owner, Priority, CreatedAt, UpdatedAt, Score, Percent, Duration, Count, JSON, Address, AI, StartDate, EndDate, Email, Phone, URL)
 - Test coverage for 3 previously untested actions atoms (Create/Update/Delete/View, Notify/Message/Assign, Search/Filter/Sort/Export)
 - Test coverage for 3 previously untested interfaces atoms (Calendar, Chart, Detail)
 - Test coverage for 3 previously untested rules atoms (Audit, Permission, Policy)
