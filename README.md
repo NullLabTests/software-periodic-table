@@ -238,11 +238,9 @@ against the feature requests, and collect empirical results.
 
 ## Roadmap
 
-- **Near term:** Expand reference implementations to cover all 115 elements. Remaining families: Actions (13 missing), Interfaces (7 missing), Rules (1 missing).
-- **Medium term:** Run a corrected LLM evaluation, publish the results with the
-  raw JSON, and collect community-contributed atoms.
+- **Near term:** Run a corrected LLM evaluation, publish the results with the raw JSON, and collect community-contributed atoms.
+- **Medium term:** Develop domain packs for common verticals (CRM, healthcare, fintech).
 - **Long term:** Port the ontology to additional languages (Python, Rust, Go).
-  Develop domain packs for common verticals.
 
 ## Contributing
 
