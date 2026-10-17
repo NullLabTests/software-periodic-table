@@ -126,6 +126,9 @@ npm run check
 npm run lint
 npm test
 
+# Tests with coverage reporting
+npm run test:coverage
+
 # Run the composition examples
 npm run example          # Task + Kanban board
 npm run example:crm      # CRM contact management
@@ -157,6 +160,9 @@ enforced by tests rather than by convention:
   the cross-family name collision) plus consistency between each scenario's
   acceptance criteria and its ground truth.
 - `test/atoms.test.ts` — behaviour of the atom implementations.
+- `test/atoms-untested.test.ts` — behaviour of the atoms that previously had no
+  tests, across the intelligence, properties, actions, interfaces, and rules
+  families.
 
 Run with `npm test`. No test framework dependency; `node:test` and `tsx` only.
 

@@ -30,7 +30,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - 115 atoms across 6 families (ontology established in 0.2.0)
-- JSON Schema validator with dependency-free implementation
 - Composition system prompt and plan schema
 - Evaluation harness with baseline vs composition comparison
 - Reference implementations for 90 of 115 atoms (25 missing: 14 actions, 9 interfaces, 2 rules)
