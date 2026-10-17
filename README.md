@@ -190,11 +190,14 @@ See `docs/AGENT_USAGE.md` for a detailed walkthrough of both patterns, including
 
 ## Status
 
-The ontology (115 elements) is stable. **Every element has a tested reference
+The ontology (115 elements) is stable. **Every element has a reference
 implementation — 115 of 115 (100%)**, across all six families (run `npm run
-coverage` for the live report). `test/ontology.test.ts` fails if any atom loses its
-implementation, because a symbol with no implementation is a hole in the claim that
-the table is composable end to end. The composition system prompt, examples, and
+coverage` for the live report). Behaviour tests cover the five families
+intelligence, properties, actions, interfaces, and rules completely; the objects
+family has reference implementations but no dedicated unit tests.
+`test/ontology.test.ts` fails if any atom loses its implementation, because a
+symbol with no implementation is a hole in the claim that the table is composable
+end to end. The composition system prompt, examples, and
 evaluation harness are functional and unit-tested.
 
 **No empirical claim is made yet.** An earlier version of this README reported a

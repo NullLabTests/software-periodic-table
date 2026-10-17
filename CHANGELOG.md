@@ -12,7 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Test coverage for all 8 intelligence atoms (Search, Summarize, Classify, Recommend, Analyze, Extract, Generate, Prompt)
 - Test coverage for all 25 properties atoms (Status, Text, Number, Date, DateTime, Currency, Enum, Boolean, ID, Owner, Priority, CreatedAt, UpdatedAt, Score, Percent, Duration, Count, JSON, Address, AI, StartDate, EndDate, Email, Phone, URL)
 - Test coverage for 11 previously untested actions atoms (Create/Update/Delete/View, Notify/Message/Assign, Search/Filter/Sort/Export)
-- Test coverage for 3 previously untested interfaces atoms (Calendar, Chart, Detail)
+- Test coverage for 4 previously untested interfaces atoms (Calendar, Chart, Detail, Form)
 - Test coverage for 3 previously untested rules atoms (Audit, Permission, Policy)
 - `test:coverage` npm script for running tests with coverage reporting
 
@@ -33,5 +33,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - JSON Schema validator with dependency-free implementation
 - Composition system prompt and plan schema
 - Evaluation harness with baseline vs composition comparison
-- Reference implementations for 90 of 115 atoms (21 missing: 13 actions, 7 interfaces, 1 rules)
+- Reference implementations for 90 of 115 atoms (25 missing: 14 actions, 9 interfaces, 2 rules)
 - CI pipeline with validation, coverage, linting, and type-checking
