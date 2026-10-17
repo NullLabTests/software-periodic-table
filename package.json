@@ -1,6 +1,6 @@
 {
   "name": "software-periodic-table",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "A finite ontology of 115 recurring software elements and a composition framework for LLM-based coding agents",
   "type": "module",
   "scripts": {
@@ -16,6 +16,7 @@
     "search": "tsx scripts/search.ts",
     "check": "tsc --noEmit && tsc -p tsconfig.test.json && tsc -p tsconfig.examples.json",
     "test": "node --import tsx --test test/*.test.ts",
+    "test:coverage": "node --import tsx --test --experimental-test-coverage test/*.test.ts",
     "format": "biome check --write",
     "lint": "biome check",
     "ci": "npm run validate && npm run coverage && npm run lint && npm run check && npm test && npm run build && npm run examples:check",

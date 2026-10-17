@@ -126,6 +126,9 @@ npm run check
 npm run lint
 npm test
 
+# Tests with coverage reporting
+npm run test:coverage
+
 # Run the composition examples
 npm run example          # Task + Kanban board
 npm run example:crm      # CRM contact management
@@ -157,6 +160,9 @@ enforced by tests rather than by convention:
   the cross-family name collision) plus consistency between each scenario's
   acceptance criteria and its ground truth.
 - `test/atoms.test.ts` — behaviour of the atom implementations.
+- `test/atoms-untested.test.ts` — behaviour of the atoms that previously had no
+  tests, across the intelligence, properties, actions, interfaces, and rules
+  families.
 
 Run with `npm test`. No test framework dependency; `node:test` and `tsx` only.
 
@@ -190,11 +196,14 @@ See `docs/AGENT_USAGE.md` for a detailed walkthrough of both patterns, including
 
 ## Status
 
-The ontology (115 elements) is stable. **Every element has a tested reference
+The ontology (115 elements) is stable. **Every element has a reference
 implementation — 115 of 115 (100%)**, across all six families (run `npm run
-coverage` for the live report). `test/ontology.test.ts` fails if any atom loses its
-implementation, because a symbol with no implementation is a hole in the claim that
-the table is composable end to end. The composition system prompt, examples, and
+coverage` for the live report). Behaviour tests cover the five families
+intelligence, properties, actions, interfaces, and rules completely; the objects
+family has reference implementations but no dedicated unit tests.
+`test/ontology.test.ts` fails if any atom loses its implementation, because a
+symbol with no implementation is a hole in the claim that the table is composable
+end to end. The composition system prompt, examples, and
 evaluation harness are functional and unit-tested.
 
 **No empirical claim is made yet.** An earlier version of this README reported a
@@ -238,11 +247,9 @@ against the feature requests, and collect empirical results.
 
 ## Roadmap
 
-- **Near term:** Expand reference implementations to cover all 115 elements. Remaining families: Actions (13 missing), Interfaces (7 missing), Rules (1 missing).
-- **Medium term:** Run a corrected LLM evaluation, publish the results with the
-  raw JSON, and collect community-contributed atoms.
+- **Near term:** Run a corrected LLM evaluation, publish the results with the raw JSON, and collect community-contributed atoms.
+- **Medium term:** Develop domain packs for common verticals (CRM, healthcare, fintech).
 - **Long term:** Port the ontology to additional languages (Python, Rust, Go).
-  Develop domain packs for common verticals.
 
 ## Contributing
 
