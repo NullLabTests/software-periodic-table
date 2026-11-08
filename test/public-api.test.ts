@@ -5,6 +5,7 @@ import { describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { KanbanMeta, type KanbanSpec, materializeKanban } from '../atoms/interfaces/kanban.js';
 import { formatTableSummary } from '../composer/prompt.js';
+import * as packageRoot from '../src/index.js';
 import { validateSchema } from '../src/jsonschema.js';
 import { buildNameIndex, loadOntology, loadOntologySchema, symbolIndex } from '../src/ontology.js';
 
@@ -49,6 +50,17 @@ describe('public API surface', () => {
     const summary = formatTableSummary(rules);
     assert.match(summary, /Available Software Periodic Table elements/);
     assert.match(summary, /Pn \(Permission\)/);
+  });
+
+  it('exposes a runtime API at the package root', () => {
+    // The root export used to be `atoms/core.ts`, which is types only and
+    // compiles to `export {}`. A consumer importing the package by name got an
+    // empty namespace, so assert the root entry actually does something.
+    assert.equal(typeof packageRoot.loadOntology, 'function');
+    assert.equal(typeof packageRoot.validateSchema, 'function');
+    assert.equal(typeof packageRoot.formatTableSummary, 'function');
+    assert.ok(packageRoot.COMPOSITION_SYSTEM_PROMPT.length > 0);
+    assert.equal(packageRoot.loadOntology().elements.length, 115);
   });
 
   it('exposes atoms with their metadata and behaviour', () => {

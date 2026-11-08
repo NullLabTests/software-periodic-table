@@ -75,6 +75,7 @@ software-periodic-table/
 │   ├── intelligence/               # Intelligence atoms: model-backed primitives
 │   └── rules/                      # Rule atoms: permission.ts, trigger.ts, action.ts
 ├── src/                            # Shared infrastructure
+│   ├── index.ts                    # Package root: loader, schema validator, prompts, types
 │   ├── ontology.ts                 # Loader, name/symbol indexes, family ranges
 │   └── jsonschema.ts               # Dependency-free JSON Schema subset validator
 ├── composer/                       # Composition layer & agent prompts
@@ -111,6 +112,9 @@ software-periodic-table/
 
 ## Quick Start
 
+Node 20.6 or newer is required. `.nvmrc` pins the version CI uses, so
+`nvm use` selects a matching runtime.
+
 ```bash
 # Install dependencies
 npm ci
@@ -135,15 +139,33 @@ npm run example:crm      # CRM contact management
 npm run example:product  # Product catalog + AI Search/Recommend
 npm run example:invoice  # Invoice dashboard + Filter/Export/Chart
 
-# Everything CI runs, in one command
+# Everything CI runs, in one command (includes the evaluation self-check)
 npm run ci
 
-# Evaluation harness self-check (no API key needed)
+# Evaluation harness self-check on its own (no API key needed)
 npm run eval
 
 # Real baseline vs composition (requires OPENAI_API_KEY or LLM_API_KEY)
 OPENAI_API_KEY=sk-... npm run eval
 ```
+
+## Package Entry Points
+
+Installing the package exposes the shared infrastructure at the root and each
+atom at its own subpath:
+
+```ts
+import { loadOntology, validateSchema } from 'software-periodic-table';
+import { COMPOSITION_SYSTEM_PROMPT } from 'software-periodic-table/composer';
+import { createTask, TaskMeta } from 'software-periodic-table/atoms/objects/task.js';
+
+const ontology = loadOntology();
+const errors = validateSchema(ontology, { type: 'object' });
+```
+
+The root entry point is the ontology loader, schema validator, composition
+prompts, and the shared types from `atoms/core.ts`. Prefer the per-atom subpaths
+when you only need one atom.
 
 ## Tests
 
@@ -159,10 +181,21 @@ enforced by tests rather than by convention:
   v0.5.0 (the `notes` characters in `planOverlap`, the acceptance fall-through,
   the cross-family name collision) plus consistency between each scenario's
   acceptance criteria and its ground truth.
-- `test/atoms.test.ts` — behaviour of the atom implementations.
+- `test/atoms.test.ts` — behaviour of the core atom implementations.
+- `test/atoms-new.test.ts` — behaviour of the atoms added alongside the lifecycle,
+  scheduling, data, board, grid, list, map, timeline, tree, card, and schedule work.
 - `test/atoms-untested.test.ts` — behaviour of the atoms that previously had no
   tests, across the intelligence, properties, actions, interfaces, and rules
   families.
+- `test/objects.test.ts` — all 35 object atoms: metadata matches the ontology,
+  every declared property is materialized, required fields and defaults hold, and
+  optional inputs round-trip.
+- `test/atom-test-coverage.test.ts` — fails if an atom module is imported by no
+  test, so a future family cannot ship untested.
+- `test/project.test.ts` — fails when versions, atom counts, the CHANGELOG entry,
+  or the README test inventory drift from the shipped code.
+- `test/public-api.test.ts` — the loader, schema entry point, prompt builder, and
+  an atom are reachable through the paths a package consumer uses.
 
 Run with `npm test`. No test framework dependency; `node:test` and `tsx` only.
 
@@ -198,13 +231,12 @@ See `docs/AGENT_USAGE.md` for a detailed walkthrough of both patterns, including
 
 The ontology (115 elements) is stable. **Every element has a reference
 implementation — 115 of 115 (100%)**, across all six families (run `npm run
-coverage` for the live report). Behaviour tests cover the five families
-intelligence, properties, actions, interfaces, and rules completely; the objects
-family has reference implementations but no dedicated unit tests.
-`test/ontology.test.ts` fails if any atom loses its implementation, because a
-symbol with no implementation is a hole in the claim that the table is composable
-end to end. The composition system prompt, examples, and
-evaluation harness are functional and unit-tested.
+coverage` for the live report). Behaviour tests cover all six families, including
+all 35 object atoms; `test/atom-test-coverage.test.ts` fails if any atom module is
+imported by no test. `test/ontology.test.ts` fails if any atom loses its
+implementation, because a symbol with no implementation is a hole in the claim
+that the table is composable end to end. The composition system prompt, examples,
+and evaluation harness are functional and unit-tested.
 
 **No empirical claim is made yet.** An earlier version of this README reported a
 39% token saving from composition. That figure is withdrawn and the metric is
@@ -278,7 +310,8 @@ npm run ci
 ```
 
 That runs the validator, the coverage report, lint, type-checking across all
-three tsconfig projects, the test suite, a build, and every example.
+three tsconfig projects, the test suite, a build, every example, and the
+evaluation self-check — the same steps as the GitHub Actions workflow.
 
 ### Governance
 
