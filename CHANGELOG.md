@@ -22,6 +22,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `npm run ci` now runs the evaluation self-check, matching the GitHub Actions
   workflow and the README's "everything CI runs" claim.
+- CI uses `actions/checkout@v5` and `actions/setup-node@v5`, which run on the
+  supported action runtime instead of the deprecated Node 20 one.
 
 ## [0.6.0] - 2026-10-22
 
