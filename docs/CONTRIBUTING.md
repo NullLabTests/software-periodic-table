@@ -33,8 +33,10 @@ Five names each exist in two families — `Email`, `Message`, `Search`, `Trigger
 4. Prefer pure data + small functions. Avoid framework-specific code in the core atoms.
 5. Add a test. `npm test` covers the validator, the schema validator, the eval
    metrics, and the atom implementations. A new atom without a test is
-   incomplete — the coverage report counts implementation files, and
-   `npm run coverage` will show the drop.
+   incomplete: `test/atom-test-coverage.test.ts` fails if the module is never
+   imported by a test, and the contribution is expected to assert behaviour, not
+   merely import it. `npm run coverage` is a different check — it measures
+   whether an implementation exists, not whether it is tested.
 6. Keep the public surface minimal and well-typed.
 
 ## The Invariants the Validator Enforces
@@ -100,5 +102,5 @@ npm run ci
 ```
 
 This runs validation, the coverage report, lint, type-checking across all three
-tsconfig projects, the test suite, a build, and every example. The PR template
-repeats this checklist.
+tsconfig projects, the test suite, a build, every example, and the evaluation
+self-check. The PR template repeats this checklist.

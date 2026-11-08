@@ -49,6 +49,7 @@ export function createSubscription(input: {
   billingInterval?: Subscription['properties']['billingInterval'];
   startDate?: string;
   renewalDate?: string;
+  cancelAt?: string;
 }): Subscription {
   const now = new Date().toISOString();
   return {
@@ -62,6 +63,7 @@ export function createSubscription(input: {
       billingInterval: input.billingInterval ?? 'monthly',
       startDate: input.startDate ?? now.slice(0, 10),
       renewalDate: input.renewalDate,
+      cancelAt: input.cancelAt,
       createdAt: now,
       updatedAt: now,
     },

@@ -4,7 +4,7 @@
 
 ## Checklist
 
-- [ ] `npm run ci` passes locally (validate, coverage, lint, type-check, test, build, examples).
+- [ ] `npm run ci` passes locally (validate, coverage, lint, type-check, test, build, examples, eval self-check).
 - [ ] New or changed behaviour has a test in `test/`.
 - [ ] If the ontology changed: `npm run validate` reports 0 errors, and
       `ontology/periodic-table.schema.json` still describes the shape.

@@ -40,6 +40,7 @@ export function createMessage(input: {
   channel?: Message['properties']['channel'];
   threadId?: string;
   recipientIds?: string[];
+  readBy?: string[];
   sentAt?: string;
 }): Message {
   return {
@@ -52,6 +53,7 @@ export function createMessage(input: {
       channel: input.channel ?? 'in_app',
       threadId: input.threadId,
       recipientIds: input.recipientIds,
+      readBy: input.readBy,
       sentAt: input.sentAt ?? new Date().toISOString(),
     },
   };
