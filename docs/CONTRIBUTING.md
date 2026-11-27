@@ -89,6 +89,14 @@ three defects that silently produced plausible-looking numbers:
 - A name-to-symbol lookup resolved across families, so an ambiguous name landed
   in whichever family was declared last.
 
+Provider changes — the Responses API path, Chat Completions fallback, retries,
+timeouts, or response parsing — need a case in `test/llm.test.ts`. Those tests
+stub `fetch`, so they run without an API key and without spending tokens.
+
+If you change repeat aggregation, add a case to `test/metrics.test.ts`. The
+runner samples each scenario `EVAL_REPEATS` times (default 3) and reports spread;
+a metric change that only works for a single sample is a regression.
+
 If you change what a metric *means*, update `docs/EVAL_RESULTS.md` and
 `eval/README.md` in the same change. That document records which numbers are
 trustworthy and why, including one that had to be withdrawn.

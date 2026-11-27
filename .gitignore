@@ -4,6 +4,7 @@ dist/
 
 # Generated evaluation artefacts
 eval-results.json
+eval-results.aggregate.json
 agent-eval-results.json
 baseline-results.json
 composition-results.json

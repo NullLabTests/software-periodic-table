@@ -2,18 +2,22 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import * as metricsNamespace from '../eval/metrics.js';
 import {
+  aggregateRepeats,
   type CompositionPlan,
   checkWithinTable,
   distinctPlanSymbols,
   type EvalResult,
   findMisfiledNames,
   findUnimplementedAtoms,
+  mean,
   normalizePlanNames,
   planFamilies,
   planJson,
   planOverlap,
   planSymbols,
   scoreFidelity,
+  stdev,
+  summarizeAggregates,
   summarizeResults,
 } from '../eval/metrics.js';
 import { SCENARIOS } from '../eval/scenarios.js';
@@ -302,6 +306,139 @@ describe('acceptance criteria gate the result', () => {
       assert.ok(scenario.minAtomsUsed > 0);
     });
   }
+});
+
+describe('aggregate statistics', () => {
+  it('computes the mean and sample standard deviation', () => {
+    assert.equal(mean([]), 0);
+    assert.equal(mean([1, 2, 3]), 2);
+    assert.equal(stdev([]), 0);
+    assert.equal(stdev([5]), 0);
+    assert.ok(Math.abs(stdev([1, 3]) - Math.SQRT2) < 1e-12);
+  });
+});
+
+describe('aggregateRepeats', () => {
+  const base: EvalResult = {
+    scenarioId: 's',
+    arm: 'composition',
+    plan: plan(),
+    atomsUsed: [],
+    atomCount: 10,
+    familiesCovered: ['objects'],
+    withinTable: true,
+    unimplementedAtoms: [],
+    misfiledNames: [],
+    fidelity: { recall: 1, precision: 1, matched: [], missed: [], spurious: [] },
+    acceptanceChecks: [
+      { criterion: 'a', passed: true, missing: [] },
+      { criterion: 'b', passed: true, missing: [] },
+    ],
+    valid: true,
+  };
+
+  function sample(overrides: Partial<EvalResult> = {}): EvalResult {
+    return { ...base, ...overrides };
+  }
+
+  it('reports mean, spread and range across repeats', () => {
+    const aggregate = aggregateRepeats('task-board', [
+      sample({ atomCount: 10 }),
+      sample({ atomCount: 12 }),
+      sample({ atomCount: 14 }),
+    ]);
+
+    assert.equal(aggregate.scenarioId, 'task-board');
+    assert.equal(aggregate.arm, 'composition');
+    assert.equal(aggregate.repeats, 3);
+    assert.equal(aggregate.validCount, 3);
+    assert.equal(aggregate.atomCount.mean, 12);
+    assert.equal(aggregate.atomCount.min, 10);
+    assert.equal(aggregate.atomCount.max, 14);
+    assert.ok(Math.abs(aggregate.atomCount.sd - 2) < 1e-12);
+    assert.equal(aggregate.stable, true);
+  });
+
+  it('marks a run unstable when any repeat is invalid', () => {
+    const aggregate = aggregateRepeats('task-board', [
+      sample({ valid: true }),
+      sample({ valid: false, withinTable: false }),
+    ]);
+    assert.equal(aggregate.validCount, 1);
+    assert.equal(aggregate.withinTableCount, 1);
+    assert.equal(aggregate.stable, false);
+  });
+
+  it('averages recall, precision and acceptance rate', () => {
+    const aggregate = aggregateRepeats('task-board', [
+      sample({
+        fidelity: { recall: 0.5, precision: 0.25, matched: [], missed: [], spurious: [] },
+        acceptanceChecks: [
+          { criterion: 'a', passed: true, missing: [] },
+          { criterion: 'b', passed: false, missing: ['Tk'] },
+        ],
+      }),
+      sample({
+        fidelity: { recall: 1, precision: 0.75, matched: [], missed: [], spurious: [] },
+        acceptanceChecks: [
+          { criterion: 'a', passed: true, missing: [] },
+          { criterion: 'b', passed: true, missing: [] },
+        ],
+      }),
+    ]);
+
+    assert.equal(aggregate.recall.mean, 0.75);
+    assert.equal(aggregate.precision.mean, 0.5);
+    assert.equal(aggregate.acceptanceRate.mean, 0.75);
+  });
+
+  it('returns zeros rather than NaN or Infinity when there are no samples', () => {
+    const aggregate = aggregateRepeats('empty', []);
+    assert.equal(aggregate.repeats, 0);
+    assert.equal(aggregate.stable, false);
+    assert.equal(aggregate.atomCount.mean, 0);
+    assert.equal(aggregate.atomCount.min, 0);
+    assert.equal(aggregate.atomCount.max, 0);
+    assert.equal(aggregate.recall.mean, 0);
+    assert.equal(aggregate.acceptanceRate.mean, 0);
+  });
+
+  it('defaults the arm to composition when no sample says otherwise', () => {
+    const aggregate = aggregateRepeats('s', []);
+    assert.equal(aggregate.arm, 'composition');
+  });
+});
+
+describe('summarizeAggregates', () => {
+  const aggregate = aggregateRepeats('task-board', [
+    {
+      scenarioId: 'task-board',
+      arm: 'composition',
+      plan: plan({ objects: ['Tk'] }),
+      atomsUsed: [{ family: 'objects', symbols: ['Tk'] }],
+      atomCount: 12,
+      familiesCovered: ['objects'],
+      withinTable: true,
+      unimplementedAtoms: [],
+      misfiledNames: [],
+      fidelity: { recall: 1, precision: 1, matched: [], missed: [], spurious: [] },
+      acceptanceChecks: [{ criterion: 'a', passed: true, missing: [] }],
+      valid: true,
+    },
+  ]);
+
+  it('labels the arm and reports spread', () => {
+    const summary = summarizeAggregates([aggregate]);
+    assert.match(summary, /task-board \[composition\]/);
+    assert.match(summary, /Repeats: 1, valid: 1\/1/);
+    assert.match(summary, /Recall: 100\.0%/);
+    assert.match(summary, /Stable: true/);
+  });
+
+  it('does not mention tokens or characters', () => {
+    const summary = summarizeAggregates([aggregate]);
+    assert.doesNotMatch(summary, /token|character/i);
+  });
 });
 
 // Both arms are written to the same artifact, so the summary has to keep them

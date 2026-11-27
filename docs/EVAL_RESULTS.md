@@ -89,6 +89,15 @@ precision against it. This is independent of notation, independent of plan lengt
 and it is the metric that actually asks whether composition found the right
 components.
 
+### Repeats and variance
+
+A single sample per scenario cannot distinguish "this approach reliably works"
+from "we got lucky on one draw". The runner therefore samples each scenario
+`EVAL_REPEATS` times (default 3) and reports the mean, sample standard deviation,
+and range for atom count, recall, precision, and acceptance rate. `stable` means
+every repeat was valid; a `2/3` result is visibly weaker than `3/3`, even when
+the mean recall looks similar.
+
 ### Acceptance criteria that can fail
 
 Each criterion names the atoms that satisfy it:
@@ -127,24 +136,36 @@ It is still worth reporting — it says *which* requirement a plan missed rather
 just a ratio — but quoting recall and acceptance as two corroborating results would
 be double-counting one measurement.
 
-### Known bias in the ground truth
+### Ground truth now follows the request text
 
-Some criteria require atoms the feature request never names: `crm-contacts`
-requires Detail, Status, Delete and Update; `product-catalog` requires Gallery when
-the request says Grid; `notification-rules` requires both `Tr` and `Ti`, which is
-one idea ("Trigger") in two families. A baseline cannot earn credit for a
-requirement it was never given, so ground-truth recall currently favours the
-composition arm for reasons unrelated to whether the ontology helps. The
-ground truth needs reworking against the request text before any live number is
-published. This is stated plainly here rather than left for a reader to discover.
+An earlier version of the harness required atoms the feature request never named:
+`crm-contacts` required Detail, Status, Delete and Update; `product-catalog`
+required Gallery when the request said Grid; `notification-rules` required both
+`Tr` and `Ti` without distinguishing the rules Trigger from the actions Trigger.
+A baseline cannot earn credit for a requirement it was never given, so recall
+favoured the composition arm for reasons unrelated to whether the ontology helps.
+
+That is fixed in 0.7.0. Every scenario's feature request now names every concept
+its ground truth scores: contacts have a status and a detail view, invoices have
+start and end dates, users are edited in a Form under a policy, notification rules
+are workflows with a status and an audit trail, and the product catalog uses
+`Gd` (Grid) because the request says Grid. `test/metrics.test.ts` keeps the
+criteria, ground truth, and `minAtomsUsed` consistent.
+
+One residual asymmetry remains: both arms emit the same six bucket names because
+the same scoring functions consume both. The baseline prompt no longer describes
+the six families in prose, but the output schema still uses the bucket names.
+That is the measurement instrument, not a hint about the ontology's content, and
+it is disclosed rather than treated as neutral.
 
 ### What is still missing
 
-**No corrected LLM run has been published.** The harness is fixed and
-reproducible, but producing honest numbers needs an API key, and no run has been
-committed. Until one is, this project has no empirical claim to make about whether
-composition beats generation. The evaluation methodology and the ontology are the
-contributions; the result is outstanding work.
+**No corrected LLM run has been published.** The harness is fixed, reproducible,
+and now reports repeat-level spread, but producing honest numbers needs an API
+key, and no run has been committed. Until one is, this project has no empirical
+claim to make about whether composition beats generation. The evaluation
+methodology and the ontology are the contributions; the result is outstanding
+work.
 
 ## Running it yourself
 
@@ -159,13 +180,17 @@ npm run eval
 # Real baseline vs composition, same model both arms.
 OPENAI_API_KEY=sk-... npm run eval
 # or: LLM_API_KEY=sk-... LLM_MODEL=gpt-4o npm run eval
-# or, against another provider:
+# five independent samples per scenario:
+EVAL_REPEATS=5 OPENAI_API_KEY=sk-... npm run eval
+# or, against another provider (Chat Completions by default off openai.com):
 OPENAI_API_KEY=... LLM_BASE_URL=https://host/v1 npm run eval
+# force an API shape if the host inference is wrong:
+OPENAI_API_KEY=... LLM_BASE_URL=https://host/v1 LLM_API=chat npm run eval
 ```
 
-Results are written to `eval-results.json`, which is gitignored. If you publish a
-run, commit the JSON alongside the table in this document so the numbers can be
-checked.
+Results are written to `eval-results.json` and `eval-results.aggregate.json`,
+both gitignored. If you publish a run, commit the JSON alongside the table in
+this document so the numbers can be checked.
 
 ### Comparing two agents instead of two prompts
 
@@ -185,16 +210,15 @@ For the thesis to be supported, a real run should show composition plans scoring
 is the result worth having: it would mean the table helps an agent find the right
 components, independently of how any of it is written.
 
-Two preconditions stand between the current harness and a publishable number:
+The two experimental-design preconditions are addressed in 0.7.0:
 
-1. **The baseline prompt must not leak the ontology's structure.** It currently
-   tells the model to "break the design into entities, fields, operations, views,
-   AI features and governance rules", which is the six-family taxonomy verbatim.
-   An arm described as having "no knowledge of the Periodic Table" is being handed
-   its skeleton. Either the taxonomy comes out of that prompt, or the arm is
-   described accurately for what it is.
-2. **The ground truth must be derived from the feature request**, not from what the
-   table happens to contain — see the bias note above.
+1. **The baseline prompt no longer names the six-family taxonomy.** It is a plain
+   software-engineering instruction. Both arms still emit the same six buckets
+   because scoring requires a common shape; that residual asymmetry is disclosed
+   above rather than treated as neutral.
+2. **The ground truth is derived from the feature request.** Each request now
+   names the concepts its ground truth scores, and `product-catalog` uses Grid
+   rather than Gallery.
 
-Neither is a harness bug. Both are experimental-design problems, and both would
-have to be settled before a live run meant anything.
+Neither change is evidence for the thesis. The remaining gap is a corrected live
+run with a real model, published with its raw JSON and repeat-level spread.

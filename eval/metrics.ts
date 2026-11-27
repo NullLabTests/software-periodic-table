@@ -238,6 +238,99 @@ export function normalizePlanNames(plan: CompositionPlan, nameIndex: NameIndex):
   return normalized;
 }
 
+export interface Stats {
+  mean: number;
+  /** Sample standard deviation; 0 for fewer than two samples. */
+  sd: number;
+  min: number;
+  max: number;
+}
+
+/**
+ * A scenario and arm scored across N independent model calls.
+ *
+ * A single sample per scenario cannot distinguish "this approach reliably
+ * works" from "we got lucky on one draw". Repeats plus spread make the
+ * difference visible instead of implied.
+ */
+export interface AggregateResult {
+  scenarioId: string;
+  arm: EvalResult['arm'];
+  repeats: number;
+  validCount: number;
+  withinTableCount: number;
+  atomCount: Stats;
+  familiesCovered: Stats;
+  recall: Stats;
+  precision: Stats;
+  acceptanceRate: Stats;
+  /** True only when every repeat was valid. */
+  stable: boolean;
+}
+
+export function mean(xs: number[]): number {
+  return xs.length === 0 ? 0 : xs.reduce((a, b) => a + b, 0) / xs.length;
+}
+
+/** Sample standard deviation. Returns 0 for fewer than two samples. */
+export function stdev(xs: number[]): number {
+  if (xs.length < 2) return 0;
+  const m = mean(xs);
+  return Math.sqrt(xs.reduce((s, x) => s + (x - m) ** 2, 0) / (xs.length - 1));
+}
+
+function stats(xs: number[]): Stats {
+  if (xs.length === 0) return { mean: 0, sd: 0, min: 0, max: 0 };
+  return { mean: mean(xs), sd: stdev(xs), min: Math.min(...xs), max: Math.max(...xs) };
+}
+
+export function aggregateRepeats(scenarioId: string, samples: EvalResult[]): AggregateResult {
+  const arm = samples[0]?.arm ?? 'composition';
+  const acceptanceRates = samples.map((sample) =>
+    sample.acceptanceChecks.length === 0
+      ? 1
+      : sample.acceptanceChecks.filter((check) => check.passed).length / sample.acceptanceChecks.length,
+  );
+  const validCount = samples.filter((sample) => sample.valid).length;
+
+  return {
+    scenarioId,
+    arm,
+    repeats: samples.length,
+    validCount,
+    withinTableCount: samples.filter((sample) => sample.withinTable).length,
+    atomCount: stats(samples.map((sample) => sample.atomCount)),
+    familiesCovered: stats(samples.map((sample) => sample.familiesCovered.length)),
+    recall: stats(samples.map((sample) => sample.fidelity.recall)),
+    precision: stats(samples.map((sample) => sample.fidelity.precision)),
+    acceptanceRate: stats(acceptanceRates),
+    stable: samples.length > 0 && validCount === samples.length,
+  };
+}
+
+/**
+ * Human-readable summary across repeats. No token or character metric is
+ * reported; see docs/EVAL_RESULTS.md.
+ */
+export function summarizeAggregates(aggregates: AggregateResult[]): string {
+  let summary = `=== Aggregate Summary (across repeats) ===\n\n`;
+  summary += `Scenario arms: ${aggregates.length}\n`;
+  summary += `Stable (every repeat valid): ${aggregates.filter((a) => a.stable).length}/${aggregates.length}\n\n`;
+
+  for (const a of aggregates) {
+    summary += `  ${a.scenarioId} [${a.arm}]:\n`;
+    summary += `    Repeats: ${a.repeats}, valid: ${a.validCount}/${a.repeats}, within table: ${a.withinTableCount}/${a.repeats}\n`;
+    summary += `    Atoms: ${a.atomCount.mean.toFixed(1)} +/- ${a.atomCount.sd.toFixed(2)} (range ${a.atomCount.min}-${a.atomCount.max})\n`;
+    summary += `    Families: ${a.familiesCovered.mean.toFixed(1)} +/- ${a.familiesCovered.sd.toFixed(2)}\n`;
+    summary += `    Recall: ${(a.recall.mean * 100).toFixed(1)}% +/- ${(a.recall.sd * 100).toFixed(1)}pp (range ${(a.recall.min * 100).toFixed(0)}-${(a.recall.max * 100).toFixed(0)}%)\n`;
+    summary += `    Precision: ${(a.precision.mean * 100).toFixed(1)}% +/- ${(a.precision.sd * 100).toFixed(1)}pp\n`;
+    summary += `    Acceptance rate: ${(a.acceptanceRate.mean * 100).toFixed(1)}% +/- ${(a.acceptanceRate.sd * 100).toFixed(1)}pp\n`;
+    summary += `    Stable: ${a.stable}\n\n`;
+  }
+
+  return summary;
+}
+
 /**
  * Generate a human-readable summary of evaluation results.
  *

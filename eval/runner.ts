@@ -33,6 +33,8 @@ import { formatTableSummary } from '../composer/prompt.js';
 import { findAtoms } from '../scripts/coverage.js';
 import { buildNameIndex, loadOntology, type NameIndex, symbolIndex } from '../src/ontology.js';
 import {
+  type AggregateResult,
+  aggregateRepeats,
   type CompositionPlan,
   checkWithinTable,
   distinctPlanSymbols,
@@ -42,12 +44,14 @@ import {
   type FidelityScore,
   findMisfiledNames,
   findUnimplementedAtoms,
+  mean,
   normalizePlanNames,
   PLAN_FAMILIES,
   planFamilies,
   planOverlap,
   planSymbols,
   scoreFidelity,
+  summarizeAggregates,
   summarizeResults,
 } from './metrics.js';
 import { type AcceptanceCriterion, type EvalScenario, SCENARIOS } from './scenarios.js';
@@ -73,16 +77,40 @@ function resolveBaseUrl(): string | undefined {
   return process.env.LLM_BASE_URL ?? process.env.OPENAI_BASE_URL;
 }
 
+/** Force the Responses API or Chat Completions instead of inferring from the host. */
+function resolveApi(): 'responses' | 'chat' | undefined {
+  const raw = process.env.LLM_API?.toLowerCase();
+  return raw === 'responses' || raw === 'chat' ? raw : undefined;
+}
+
+/** Total attempts per request, including the first. */
+function resolveAttempts(): number | undefined {
+  const raw = Number.parseInt(process.env.LLM_MAX_ATTEMPTS ?? '', 10);
+  return Number.isFinite(raw) && raw > 0 ? raw : undefined;
+}
+
+/** Per-request timeout in milliseconds. */
+function resolveTimeout(): number | undefined {
+  const raw = Number.parseInt(process.env.LLM_TIMEOUT_MS ?? '', 10);
+  return Number.isFinite(raw) && raw > 0 ? raw : undefined;
+}
+
+/**
+ * Independent samples per scenario. One sample cannot tell a reliable result
+ * apart from a lucky draw, so the default is three.
+ */
+function resolveRepeats(): number {
+  const raw = Number.parseInt(process.env.EVAL_REPEATS ?? '3', 10);
+  return Number.isFinite(raw) && raw > 0 ? raw : 3;
+}
+
+function emptyPlan(): CompositionPlan {
+  return { objects: [], properties: [], actions: [], interfaces: [], intelligence: [], rules: [] };
+}
+
 /** The ground-truth composition for a scenario, used by the mock mode. */
 function mockPlanForScenario(scenario: EvalScenario): CompositionPlan {
-  const plan: CompositionPlan = {
-    objects: [],
-    properties: [],
-    actions: [],
-    interfaces: [],
-    intelligence: [],
-    rules: [],
-  };
+  const plan = emptyPlan();
   for (const entry of scenario.expectedAtoms) {
     for (const family of PLAN_FAMILIES) {
       if (entry.family === family) plan[family].push(...entry.symbols);
@@ -166,15 +194,26 @@ interface ArmResult {
   plan: CompositionPlan;
 }
 
-function summarizeArm(plan: CompositionPlan, result: EvalResult): ArmResult {
+/**
+ * Collapse repeated samples for one arm into the numbers the comparison table
+ * shows. Recall and precision are averaged; `valid` and `withinTable` require
+ * every sample to pass, so a single bad repeat cannot read as a clean result.
+ */
+function averageArm(samples: EvalResult[]): ArmResult {
+  const last = samples[samples.length - 1]!;
+  const atomCount = mean(samples.map((sample) => sample.atomCount));
   return {
-    atomCount: result.atomCount,
-    fidelity: result.fidelity,
-    acceptancePassed: result.acceptanceChecks.filter((c) => c.passed).length,
-    acceptanceTotal: result.acceptanceChecks.length,
-    withinTable: result.withinTable,
-    valid: result.valid,
-    plan,
+    atomCount: Math.round(atomCount * 10) / 10,
+    fidelity: {
+      ...last.fidelity,
+      recall: mean(samples.map((sample) => sample.fidelity.recall)),
+      precision: mean(samples.map((sample) => sample.fidelity.precision)),
+    },
+    acceptancePassed: mean(samples.map((sample) => sample.acceptanceChecks.filter((c) => c.passed).length)),
+    acceptanceTotal: last.acceptanceChecks.length,
+    withinTable: samples.every((sample) => sample.withinTable),
+    valid: samples.every((sample) => sample.valid),
+    plan: last.plan,
   };
 }
 
@@ -191,31 +230,38 @@ async function runLlmMode(
   knownSymbols: Set<string>,
   implemented: Set<string>,
   nameIndex: NameIndex,
-): Promise<{ results: EvalResult[]; comparisons: ComparisonRow[] }> {
+): Promise<{ results: EvalResult[]; comparisons: ComparisonRow[]; aggregates: AggregateResult[] }> {
   const { OpenAIProvider } = await import('./llm.js');
-  const provider = new OpenAIProvider({ apiKey: resolveApiKey()!, model: resolveModel(), baseUrl: resolveBaseUrl() });
+  const provider = new OpenAIProvider({
+    apiKey: resolveApiKey()!,
+    model: resolveModel(),
+    baseUrl: resolveBaseUrl(),
+    api: resolveApi(),
+    maxAttempts: resolveAttempts(),
+    timeoutMs: resolveTimeout(),
+  });
   const ontology = loadOntology();
   const ontologyContext = formatTableSummary(ontology.elements);
+  const repeats = resolveRepeats();
 
   const results: EvalResult[] = [];
   const comparisons: ComparisonRow[] = [];
+  const aggregates: AggregateResult[] = [];
 
   for (const scenario of SCENARIOS) {
     console.log(`Scenario: ${scenario.id} (${scenario.title})`);
-    let compositionArm: Awaited<ReturnType<typeof provider.generateComposition>>;
-    let baselineArm: Awaited<ReturnType<typeof provider.generateBaseline>>;
-    try {
-      compositionArm = await provider.generateComposition(scenario.featureRequest, ontologyContext);
-      baselineArm = await provider.generateBaseline(scenario.featureRequest);
-    } catch (err) {
-      // Recorded rather than swallowed: a failed scenario used to shrink N with no
+    const compositionSamples: EvalResult[] = [];
+    const baselineSamples: EvalResult[] = [];
+
+    const recordError = (arm: EvalResult['arm'], err: unknown, repeat: number): void => {
+      // Recorded rather than swallowed: a failed sample used to shrink N with no
       // trace in the output, which made a partial run look like a complete one.
       const message = err instanceof Error ? err.message : String(err);
-      console.error(`  ERROR: ${message}\n`);
+      console.error(`  [${repeat}/${repeats}] ${arm} ERROR: ${message}`);
       results.push({
         scenarioId: scenario.id,
-        arm: 'composition',
-        plan: { objects: [], properties: [], actions: [], interfaces: [], intelligence: [], rules: [] },
+        arm,
+        plan: emptyPlan(),
         atomsUsed: [],
         atomCount: 0,
         familiesCovered: [],
@@ -227,66 +273,84 @@ async function runLlmMode(
         valid: false,
         error: message,
       });
-      continue;
+    };
+
+    for (let repeat = 1; repeat <= repeats; repeat++) {
+      try {
+        const arm = await provider.generateComposition(scenario.featureRequest, ontologyContext);
+        const result = evaluateScenario(scenario, knownSymbols, implemented, nameIndex, arm.plan, 'composition');
+        compositionSamples.push(result);
+        results.push(result);
+        console.log(`  [${repeat}/${repeats}] ${formatArm('Composition', result).trim()}`);
+      } catch (err) {
+        recordError('composition', err, repeat);
+      }
+
+      try {
+        const arm = await provider.generateBaseline(scenario.featureRequest);
+        // The composition arm already emits symbols; the baseline emits
+        // descriptive names. Resolving the baseline's names within their own
+        // family is what lets fidelity score it fairly — a baseline component
+        // that coincides with an ontology atom should earn the credit, without
+        // being moved into another family to do it.
+        const baselinePlan = normalizePlanNames(arm.plan, nameIndex);
+        const result = evaluateScenario(scenario, knownSymbols, implemented, nameIndex, baselinePlan, 'baseline');
+        baselineSamples.push(result);
+        results.push(result);
+        console.log(`  [${repeat}/${repeats}] ${formatArm('Baseline', result).trim()}`);
+      } catch (err) {
+        recordError('baseline', err, repeat);
+      }
     }
 
-    // The composition arm already emits symbols; the baseline emits descriptive
-    // names. Resolving the baseline's names within their own family is what
-    // lets fidelity score it fairly — a baseline component that coincides with
-    // an ontology atom should earn the credit, without being moved into
-    // another family to do it.
-    const baselinePlan = normalizePlanNames(baselineArm.plan, nameIndex);
+    if (compositionSamples.length > 0 && baselineSamples.length > 0) {
+      // Pair every composition sample with every baseline sample rather than by
+      // index: a failed repeat on one side would otherwise shift the pairing.
+      const overlaps = compositionSamples.flatMap((composition) =>
+        baselineSamples.map((baseline) => planOverlap(composition.plan, baseline.plan)),
+      );
+      comparisons.push({
+        scenarioId: scenario.id,
+        baseline: averageArm(baselineSamples),
+        composition: averageArm(compositionSamples),
+        overlap: mean(overlaps),
+      });
+    }
 
-    const compositionResult = evaluateScenario(
-      scenario,
-      knownSymbols,
-      implemented,
-      nameIndex,
-      compositionArm.plan,
-      'composition',
-    );
-    const baselineResult = evaluateScenario(scenario, knownSymbols, implemented, nameIndex, baselinePlan, 'baseline');
+    if (compositionSamples.length > 0) {
+      aggregates.push(aggregateRepeats(scenario.id, compositionSamples));
+    }
+    if (baselineSamples.length > 0) {
+      aggregates.push(aggregateRepeats(scenario.id, baselineSamples));
+    }
 
-    // Both arms are recorded. Saving only the composition arm left the published
-    // artifact without the baseline numbers it was compared against.
-    results.push(compositionResult, baselineResult);
-
-    comparisons.push({
-      scenarioId: scenario.id,
-      baseline: summarizeArm(baselinePlan, baselineResult),
-      composition: summarizeArm(compositionArm.plan, compositionResult),
-      overlap: planOverlap(compositionArm.plan, baselinePlan),
-    });
-
-    console.log(formatArm('Composition', compositionResult));
-    console.log(formatArm('Baseline', baselineResult));
-    for (const r of [compositionResult, baselineResult]) {
-      if (r.misfiledNames.length > 0) {
+    for (const result of [...compositionSamples, ...baselineSamples]) {
+      if (result.misfiledNames.length > 0) {
         console.log(
-          `  ${r.arm === 'baseline' ? 'Baseline   ' : 'Composition'} misfiled: ` +
-            r.misfiledNames.map((m) => `${m.name} in ${m.family} -> ${m.expectedSymbol}`).join(', '),
+          `  ${result.arm === 'baseline' ? 'Baseline   ' : 'Composition'} misfiled: ` +
+            result.misfiledNames.map((m) => `${m.name} in ${m.family} -> ${m.expectedSymbol}`).join(', '),
         );
       }
     }
     console.log('');
   }
 
-  return { results, comparisons };
+  return { results, comparisons, aggregates };
 }
 
 function reportComparisons(comparisons: ComparisonRow[]): void {
   if (comparisons.length === 0) return;
 
   const arm = (row: ComparisonRow, side: 'composition' | 'baseline'): ArmResult => row[side];
-  const mean = (pick: (row: ComparisonRow) => number) =>
+  const average = (pick: (row: ComparisonRow) => number) =>
     comparisons.reduce((s, c) => s + pick(c), 0) / comparisons.length;
-  const total = (pick: (row: ComparisonRow) => number) => comparisons.reduce((s, c) => s + pick(c), 0);
+  const sum = (pick: (row: ComparisonRow) => number) => comparisons.reduce((s, c) => s + pick(c), 0);
 
-  const recallC = mean((c) => arm(c, 'composition').fidelity.recall);
-  const recallB = mean((c) => arm(c, 'baseline').fidelity.recall);
+  const recallC = average((c) => arm(c, 'composition').fidelity.recall);
+  const recallB = average((c) => arm(c, 'baseline').fidelity.recall);
   const acceptC =
-    total((c) => arm(c, 'composition').acceptancePassed) / total((c) => arm(c, 'composition').acceptanceTotal);
-  const acceptB = total((c) => arm(c, 'baseline').acceptancePassed) / total((c) => arm(c, 'baseline').acceptanceTotal);
+    sum((c) => arm(c, 'composition').acceptancePassed) / sum((c) => arm(c, 'composition').acceptanceTotal);
+  const acceptB = sum((c) => arm(c, 'baseline').acceptancePassed) / sum((c) => arm(c, 'baseline').acceptanceTotal);
 
   console.log('='.repeat(72));
   console.log('  Aggregate (composition vs baseline)');
@@ -296,7 +360,7 @@ function reportComparisons(comparisons: ComparisonRow[]): void {
   console.log(
     `  Scenarios passing:        ${comparisons.filter((c) => c.composition.valid).length}/${comparisons.length}  vs  ${comparisons.filter((c) => c.baseline.valid).length}/${comparisons.length}`,
   );
-  console.log(`  Mean plan overlap:        ${(mean((c) => c.overlap) * 100).toFixed(0)}%`);
+  console.log(`  Mean plan overlap:        ${(average((c) => c.overlap) * 100).toFixed(0)}%`);
   console.log('='.repeat(72));
   console.log('  Notes:');
   console.log('  - `within table` is not a baseline win. The baseline was never given');
@@ -320,10 +384,13 @@ async function main(): Promise<void> {
   console.log(`Atoms with reference implementations: ${implemented.size}/${ontology.elements.length}\n`);
 
   if (useLLM) {
-    console.log(`Mode: LLM (${resolveModel() ?? 'gpt-4o'}) — baseline vs composition\n`);
-    const { results, comparisons } = await runLlmMode(knownSymbols, implemented, nameIndex);
-    if (results.length > 0) {
+    const repeats = resolveRepeats();
+    console.log(`Mode: LLM (${resolveModel() ?? 'gpt-4o'}) — baseline vs composition`);
+    console.log(`Repeats per scenario: ${repeats}\n`);
+    const { results, comparisons, aggregates } = await runLlmMode(knownSymbols, implemented, nameIndex);
+    if (results.some((result) => result.error === undefined)) {
       console.log(summarizeResults(results));
+      if (aggregates.length > 0) console.log(summarizeAggregates(aggregates));
       reportComparisons(comparisons);
     } else {
       console.error('No scenario completed. Check the API key and model name.');
@@ -331,8 +398,11 @@ async function main(): Promise<void> {
     }
     fs.writeFileSync(
       path.resolve(REPO_ROOT, 'eval-results.json'),
-      JSON.stringify({ mode: 'llm', results, comparisons }, null, 2),
+      JSON.stringify({ mode: 'llm', repeats, results, comparisons, aggregates }, null, 2),
     );
+    const aggregatePath = path.resolve(REPO_ROOT, 'eval-results.aggregate.json');
+    fs.writeFileSync(aggregatePath, JSON.stringify(aggregates, null, 2));
+    console.log(`Aggregate results written to ${aggregatePath}`);
     return;
   }
 

@@ -43,7 +43,7 @@ export const SCENARIOS: EvalScenario[] = [
     id: 'task-board',
     title: 'Task Board with Status and Assignees',
     description: 'A project-management board where users can create, assign, and track tasks across status columns.',
-    featureRequest: `Build a task board application. Users should be able to create tasks with a title, description, priority, and assignee. Tasks move through statuses: backlog, todo, in_progress, done. Users can view tasks in a Kanban board or a Table view. Only authenticated users with appropriate roles can create or update tasks.`,
+    featureRequest: `Build a task board application. Users should be able to create tasks with a title, description, priority, and assignee (owner). Tasks move through statuses: backlog, todo, in_progress, done. Users can view tasks in a Kanban board or a Table view. Only authenticated users with appropriate roles can create or update tasks.`,
     expectedAtoms: [
       { family: 'objects', symbols: ['Tk', 'Us'], description: 'Task and User objects' },
       { family: 'properties', symbols: ['Ss', 'Py', 'Ow'], description: 'Status, Priority, Owner' },
@@ -67,7 +67,7 @@ export const SCENARIOS: EvalScenario[] = [
     id: 'crm-contacts',
     title: 'Simple CRM Contact Management',
     description: 'A contact management system with companies, people, activity logging, and search.',
-    featureRequest: `Build a CRM contact manager. Users manage Companies and Contacts. Each contact has name, email, phone, company association. Log activities (calls, emails, meetings) against contacts. Search contacts by name or company. View contacts in a Table with filtering and sorting. Export the contact list.`,
+    featureRequest: `Build a CRM contact manager. Users manage Companies and Contacts. Each contact has name, email, phone, company association, and a status (lead, active, inactive). Log activities (calls, emails, meetings) against contacts; each activity has a date. Search contacts by name or company. View contacts in a Table with filtering and sorting, and open a Detail view for a single contact. Users can update and delete contacts. Export the contact list.`,
     expectedAtoms: [
       { family: 'objects', symbols: ['Co', 'Ct', 'Ay'], description: 'Company, Contact, Activity' },
       { family: 'properties', symbols: ['Ss', 'Dt'], description: 'Status, Date' },
@@ -96,7 +96,7 @@ export const SCENARIOS: EvalScenario[] = [
     id: 'invoice-list',
     title: 'Invoice List with Filters and Export',
     description: 'A billing dashboard showing invoices with status tracking, filtering, and export capabilities.',
-    featureRequest: `Build an invoice management dashboard. Invoices have a number, customer name, amount (currency), issue date, due date, and status (draft, sent, paid, overdue, void). Users can filter by status and date range, sort by amount or date, and export the filtered list as CSV. Users with admin role can create and update invoices.`,
+    featureRequest: `Build an invoice management dashboard. Invoices have a number, customer name, amount (currency), issue date, due date, and status (draft, sent, paid, overdue, void). Users can filter by status and by a start and end date, sort by amount or date, and export the filtered list as CSV. Users with admin role can create and update invoices.`,
     expectedAtoms: [
       { family: 'objects', symbols: ['In'], description: 'Invoice object' },
       {
@@ -130,7 +130,7 @@ export const SCENARIOS: EvalScenario[] = [
     id: 'user-role-management',
     title: 'User and Role Management',
     description: 'Admin panel for managing users, roles, and permissions with team organization.',
-    featureRequest: `Build a user and role management system. Admins can create users, assign them to roles (admin, member, viewer), and organize users into teams. Each role has a set of permissions. Users can be activated, invited, or disabled. View all users in a Table with role filtering.`,
+    featureRequest: `Build a user and role management system. Admins can create, update, and delete users, assign them to roles (admin, member, viewer), and organize users into teams. Each role has a set of permissions. Users have a status (active, invited, disabled). Admins can view user details, edit users in a Form, and view all users in a Table with role filtering. A policy governs which roles can be assigned.`,
     expectedAtoms: [
       { family: 'objects', symbols: ['Us', 'Ro', 'Tm'], description: 'User, Role, Team objects' },
       { family: 'properties', symbols: ['Ss'], description: 'Status property' },
@@ -154,7 +154,7 @@ export const SCENARIOS: EvalScenario[] = [
     id: 'notification-rules',
     title: 'Notification Rules Engine',
     description: 'A configurable notification system where triggers fire notifications based on conditions.',
-    featureRequest: `Build a notification rules engine. Admins create rules that fire notifications when certain conditions are met (e.g. "when a task status changes to done, notify the owner"). Notifications can be email or in-app messages. Rules have a trigger (event), optional conditions, and an action (notification). View all rules in a Table and see notification history in a Feed.`,
+    featureRequest: `Build a notification rules engine. Admins create workflow rules that fire notifications when certain conditions are met (e.g. "when a task status changes to done, notify the owner"). Each rule has a status and an enabled flag. Notifications can be email or in-app messages. Rules define a trigger event, optional conditions, and an action (notification); firing the rule triggers the notification action. View all rules in a Table and see notification history in a Feed. Rule firings are audited.`,
     expectedAtoms: [
       { family: 'objects', symbols: ['Wf', 'Ms', 'Em'], description: 'Workflow, Message, Email' },
       { family: 'properties', symbols: ['Ss', 'Bl'], description: 'Status, Boolean' },
@@ -180,15 +180,15 @@ export const SCENARIOS: EvalScenario[] = [
     id: 'product-catalog',
     title: 'Product Catalog with Search and Recommendations',
     description: 'A product catalog with categories, search, and AI-powered recommendations.',
-    featureRequest: `Build a product catalog. Products have name, description, price (currency), category, and status (active, inactive). Users can browse products in a Grid or Table view, search by name or description, and filter by category and price range. An AI Recommend atom suggests related products based on the currently viewed product. Admins can create and update products.`,
+    featureRequest: `Build a product catalog. Products have a name, description text, price (currency), category, tags, and status (active, inactive). Users can browse products in a Grid or Table view, open a Detail view, view products, search by name or description with both keyword search and AI-powered search, and filter by category and price range. AI-powered recommendations suggest related products based on the currently viewed product. Admins can create and update products.`,
     expectedAtoms: [
       { family: 'objects', symbols: ['Pr', 'Tg'], description: 'Product, Tag' },
       { family: 'properties', symbols: ['Cu', 'Ss', 'Tx'], description: 'Currency, Status, Text' },
       { family: 'actions', symbols: ['Cr', 'Up', 'Vw', 'Se', 'Fi'], description: 'CRUD + Search, Filter' },
-      { family: 'interfaces', symbols: ['Gy', 'Tb', 'Di'], description: 'Gallery, Table, Detail views' },
+      { family: 'interfaces', symbols: ['Gd', 'Tb', 'Di'], description: 'Grid, Table, Detail views' },
       { family: 'intelligence', symbols: ['Sr', 'Rc'], description: 'Search, Recommend' },
     ],
-    groundTruthAtoms: ['Pr', 'Tg', 'Cu', 'Ss', 'Tx', 'Cr', 'Up', 'Vw', 'Se', 'Fi', 'Gy', 'Tb', 'Di', 'Sr', 'Rc'],
+    groundTruthAtoms: ['Pr', 'Tg', 'Cu', 'Ss', 'Tx', 'Cr', 'Up', 'Vw', 'Se', 'Fi', 'Gd', 'Tb', 'Di', 'Sr', 'Rc'],
     minAtomsUsed: 15,
     acceptanceCriteria: [
       { text: 'Products and tags are modeled', requires: ['Pr', 'Tg'] },
@@ -197,7 +197,7 @@ export const SCENARIOS: EvalScenario[] = [
       { text: 'Products can be browsed', requires: ['Vw'] },
       { text: 'Products are searchable', requires: ['Se', 'Sr'] },
       { text: 'Products can be filtered', requires: ['Fi'] },
-      { text: 'Products display in Gallery, Table and Detail views', requires: ['Gy', 'Tb', 'Di'] },
+      { text: 'Products display in Grid, Table and Detail views', requires: ['Gd', 'Tb', 'Di'] },
       { text: 'AI recommendations are applied', requires: ['Rc'] },
     ],
   },

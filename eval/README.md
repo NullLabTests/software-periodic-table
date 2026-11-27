@@ -10,14 +10,20 @@ metric was wrong too, and which metrics are worth trusting.
 ## Quick Start
 
 ```bash
-npm run eval                    # self-check, no API key needed
-OPENAI_API_KEY=sk-... npm run eval   # real baseline vs composition
+npm run eval                              # self-check, no API key needed
+OPENAI_API_KEY=sk-... npm run eval        # real baseline vs composition
+EVAL_REPEATS=5 OPENAI_API_KEY=sk-... npm run eval   # five samples per scenario
 ```
 
 With no key, the harness replays each scenario's own ground-truth plan. That is a
 check of the metrics and the ontology, not a measurement of model behaviour:
 every plan is within the table by construction, so recall is 1.0 and acceptance
 passes by definition. The output says so on every run.
+
+With a key, each scenario is sampled `EVAL_REPEATS` times (default 3). The
+aggregate report shows mean, sample standard deviation, and range for atom count,
+recall, precision, and acceptance rate, plus whether every repeat was valid. A
+single sample cannot distinguish a reliable result from a lucky draw.
 
 ## Scenarios
 
@@ -46,7 +52,7 @@ difference is what they are told.
 
 | | Baseline | Composition |
 |---|---|---|
-| System prompt | plain software engineering instruction | composition prompt |
+| System prompt | plain software engineering instruction, with no family taxonomy | composition prompt |
 | Ontology | not shown | full table with symbols |
 | Naming | its own descriptive names | required to use table symbols |
 
@@ -55,6 +61,15 @@ a baseline component that happens to coincide with an ontology atom earns the
 credit. Without the family qualifier the lookup is ambiguous — `Email` is both an
 object and a property — and components get silently reassigned to whichever
 family was declared last.
+
+Both arms still emit the same six bucket names because the same scoring functions
+consume both. That is the measurement instrument, not a description of the table;
+the baseline prompt no longer describes the six families in prose.
+
+Each scenario's feature request now names every concept its ground truth scores,
+so the baseline is not penalized for requirements it was never given. The
+`product-catalog` ground truth uses `Gd` (Grid) because the request says "Grid";
+the earlier version scored `Gy` (Gallery) instead.
 
 ## Metrics
 
@@ -68,6 +83,17 @@ family was declared last.
 | `withinTable` | Every symbol exists in the ontology | Not a comparison |
 | `planOverlap` | Symbol overlap between two plans | Yes, after the `notes` fix |
 | `error` | Why an arm produced no scoreable plan | Recorded, never dropped |
+| `aggregateRepeats` | Mean, sample SD, and range across repeats | Yes — shows stability |
+
+### Repeats and variance
+
+`EVAL_REPEATS` controls how many independent samples each scenario gets. The
+runner writes `eval-results.json` (every sample, both arms) and
+`eval-results.aggregate.json` (per-scenario-arm statistics). Both are gitignored.
+
+`stable` means every repeat was valid. A run with `3/3 valid` is stronger
+evidence than a single pass, and a run with `2/3` is visibly not the same thing
+even if its mean recall looks fine.
 
 ### Why there is no token metric
 
@@ -108,13 +134,22 @@ different agents, or for running an experiment that should not cost API calls.
 | `LLM_API_KEY` / `OPENAI_API_KEY` | Enables the LLM path. Both are accepted so the documented command works. |
 | `LLM_MODEL` / `OPENAI_MODEL` | Model id. Defaults to `gpt-4o`. |
 | `LLM_BASE_URL` / `OPENAI_BASE_URL` | API root, for any OpenAI-compatible endpoint. |
+| `LLM_API` | `responses` or `chat`. Defaults to `responses` for `openai.com`, `chat` for other hosts. |
+| `EVAL_REPEATS` | Independent samples per scenario. Defaults to 3. |
+| `LLM_MAX_ATTEMPTS` | Total attempts per request, including the first. Defaults to 4. |
+| `LLM_TIMEOUT_MS` | Per-request timeout in milliseconds. Defaults to 120000. |
+
+The OpenAI provider uses the Responses API with a strict JSON schema when the
+host is `openai.com`. Other OpenAI-compatible gateways use Chat Completions,
+because many of them do not implement `/responses`. Retryable statuses (408, 409,
+425, 429, and 5xx) and transport failures are retried with exponential backoff.
 
 ## Files
 
 | File | Role |
 |---|---|
-| `runner.ts` | Entry point. API-backed comparison, or the mock self-check. |
-| `llm.ts` | `LLMProvider` interface and an OpenAI-compatible implementation. |
+| `runner.ts` | Entry point. API-backed comparison with repeats, or the mock self-check. |
+| `llm.ts` | `LLMProvider` interface; Responses API and Chat Completions implementations. |
 | `scenarios.ts` | Feature requests, ground truth, acceptance criteria. |
-| `metrics.ts` | Pure scoring functions. No I/O, fully unit-tested. |
+| `metrics.ts` | Pure scoring and aggregation functions. No I/O, fully unit-tested. |
 | `agent-eval.ts` | Prompt generation and scoring for sub-agent comparisons. |

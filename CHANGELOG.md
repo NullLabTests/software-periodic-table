@@ -7,8 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-11-27
+
 ### Added
 
+- OpenAI Responses API support in the evaluation provider, with a strict JSON
+  schema for arm responses. Chat Completions remains the default for
+  OpenAI-compatible gateways that do not implement `/responses`; `LLM_API`
+  overrides the inferred choice.
+- Bounded retries with exponential backoff for retryable HTTP statuses and
+  transport failures, plus a per-request timeout. `LLM_MAX_ATTEMPTS` and
+  `LLM_TIMEOUT_MS` tune them.
+- Repeat-based evaluation: `EVAL_REPEATS` samples each scenario independently
+  (default 3), and the runner reports mean, sample standard deviation, and range
+  for atom count, recall, precision, and acceptance rate, plus a `stable` flag.
+  Aggregates are written to the gitignored `eval-results.aggregate.json`.
+- `test/llm.test.ts`, which stubs `fetch` to cover response parsing, API
+  selection, retries, and non-retryable errors without an API key.
 - A runtime package root entry point (`src/index.ts`) exporting the ontology
   loader, schema validator, composition prompts, and core types. The root used
   to resolve to `atoms/core.ts`, which is types only and compiled to `export {}`,
@@ -20,10 +35,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- The baseline prompt no longer names the ontology's six-family taxonomy in
+  prose. Both arms still emit the same six bucket names because the scoring
+  functions require a common shape; the residual asymmetry is documented.
+- Every evaluation feature request now names the concepts its ground truth
+  scores. `product-catalog` uses Grid (`Gd`) instead of Gallery (`Gy`), matching
+  the request, and `notification-rules` distinguishes the rules Trigger from the
+  actions Trigger.
 - `npm run ci` now runs the evaluation self-check, matching the GitHub Actions
   workflow and the README's "everything CI runs" claim.
 - CI uses `actions/checkout@v5` and `actions/setup-node@v5`, which run on the
   supported action runtime instead of the deprecated Node 20 one.
+- `docs/EVAL_RESULTS.md`, `eval/README.md`, and the README now describe the
+  provider modes, repeat/variance reporting, and the corrected experimental
+  design. No empirical claim is added; no live LLM run has been published.
+
+### Fixed
+
+- LLM mode could exit successfully when every request failed, because error
+  records made the result list non-empty. It now requires at least one completed
+  sample before reporting success.
+- Response parsing accepts bare JSON, fenced JSON, and JSON embedded in prose,
+  including braces inside string values, instead of failing on the first shape
+  the model did not choose.
 
 ## [0.6.0] - 2026-10-22
 

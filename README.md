@@ -92,7 +92,7 @@ software-periodic-table/
 │   ├── metrics.ts                  # Fidelity, acceptance and plan diagnostics
 │   ├── agent-eval.ts               # Sub-agent variant of the same comparison
 │   └── README.md                   # How to run & interpret eval
-├── test/                           # node:test suite — ontology, schema, metrics, atoms
+├── test/                           # node:test suite — ontology, schema, metrics, providers, atoms
 ├── docs/
 │   ├── DESIGN.md                   # Rationale and design decisions
 │   ├── AGENT_USAGE.md              # How to use with coding agents
@@ -179,8 +179,11 @@ enforced by tests rather than by convention:
   `if`/`then`/`const` machinery the per-family id bounds depend on.
 - `test/metrics.test.ts` — regression tests for the evaluation bugs fixed in
   v0.5.0 (the `notes` characters in `planOverlap`, the acceptance fall-through,
-  the cross-family name collision) plus consistency between each scenario's
-  acceptance criteria and its ground truth.
+  the cross-family name collision), repeat aggregation, plus consistency between
+  each scenario's acceptance criteria and its ground truth.
+- `test/llm.test.ts` — provider response parsing, Responses-vs-Chat selection,
+  retries, timeouts, and non-retryable errors, with `fetch` stubbed so no API key
+  or network call is needed.
 - `test/atoms.test.ts` — behaviour of the core atom implementations.
 - `test/atoms-new.test.ts` — behaviour of the atoms added alongside the lifecycle,
   scheduling, data, board, grid, list, map, timeline, tree, card, and schedule work.
@@ -247,13 +250,21 @@ approximately zero (0.99×, where the character estimate claimed 1.36×). The ha
 scores ground-truth recall and acceptance criteria, and no LLM run has been
 published. See [`docs/EVAL_RESULTS.md`](docs/EVAL_RESULTS.md).
 
-Two experimental-design problems are documented and unsolved: the baseline prompt
-leaks the ontology's six-family taxonomy, and some ground truth requires atoms the
-feature request never mentions. Both would need settling before a live run meant
-anything.
+The two experimental-design problems documented in 0.6.0 are addressed: the
+baseline prompt no longer names the six-family taxonomy, and each scenario's
+feature request now names the concepts its ground truth scores. `product-catalog`
+uses Grid (`Gd`) rather than Gallery (`Gy`), matching its request. The output
+schema still uses the same six bucket names for both arms because scoring
+requires a common shape; that residual asymmetry is disclosed in
+[`docs/EVAL_RESULTS.md`](docs/EVAL_RESULTS.md).
 
-Remaining work: run and publish a corrected LLM evaluation, rework the ground truth
-against the feature requests, and collect empirical results.
+The harness now uses the OpenAI Responses API with strict JSON output for
+`openai.com`, falls back to Chat Completions for compatible gateways, retries
+retryable failures with backoff, and samples each scenario `EVAL_REPEATS` times
+(default 3) to report variance rather than a single draw.
+
+Remaining work: run and publish a corrected LLM evaluation with repeat-level
+spread, and collect empirical results.
 
 ## Limitations
 
@@ -266,10 +277,11 @@ against the feature requests, and collect empirical results.
   was −21% on symbol plans and +9% on name-expanded plans when checked against a
   real tokenizer, so it could not be corrected by a constant factor and was
   removed instead of recalibrated.
-- The evaluation ground truth is not yet defensible: some criteria require atoms
-  the feature request never names, and `notification-rules` requires "Trigger" in
-  two families at once. Baseline recall is currently understated for reasons
-  unrelated to the ontology.
+- The evaluation ground truth now follows each feature request, but no live run
+  has been published. Both arms still emit the same six bucket names because
+  scoring requires a common shape; the baseline prompt no longer describes the
+  taxonomy in prose, and the residual asymmetry is disclosed rather than treated
+  as neutral.
 - Domain-specific concepts (insurance claims, retail SKUs, etc.) are intentionally
   excluded from the core table. They belong in optional domain packs.
 - Five names each identify elements in two families (`Email`, `Message`,
@@ -279,7 +291,7 @@ against the feature requests, and collect empirical results.
 
 ## Roadmap
 
-- **Near term:** Run a corrected LLM evaluation, publish the results with the raw JSON, and collect community-contributed atoms.
+- **Near term:** Run a corrected LLM evaluation with repeat-level spread, publish the results with the raw JSON, and collect community-contributed atoms.
 - **Medium term:** Develop domain packs for common verticals (CRM, healthcare, fintech).
 - **Long term:** Port the ontology to additional languages (Python, Rust, Go).
 
